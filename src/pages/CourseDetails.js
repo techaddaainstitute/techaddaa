@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { FaStar, FaUsers, FaClock, FaPlay, FaDownload, FaCertificate, FaChalkboardTeacher, FaLaptop, FaBuilding } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import CourseUsecase from '../lib/usecase/CourseUsecase';
+import FeesUsecase from '../lib/usecase/FeesUsecase';
 import { toast } from 'react-toastify';
 
 const CourseDetails = () => {
@@ -16,6 +17,8 @@ const CourseDetails = () => {
   const [courseLoading, setCourseLoading] = useState(true);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [selectedMode, setSelectedMode] = useState('online');
+  const [paymentType, setPaymentType] = useState('full');
+  const [emiMonths, setEmiMonths] = useState(6);
 
   // Fetch course data from database
   // Helper function to convert integer course IDs to UUIDs
@@ -158,10 +161,36 @@ const CourseDetails = () => {
       return;
     }
 
-    const result = await purchaseCourse(course.id, selectedMode);
-    if (result.success) {
-      setShowPurchaseModal(false);
-      toast.success('Course purchased successfully!');
+    try {
+      // First, enroll in the course
+      const enrollmentResult = await purchaseCourse(course.id, selectedMode);
+      
+      if (enrollmentResult.success) {
+        // Create fees entries based on payment type
+        const courseAmount = selectedMode === 'online' ? course.onlinePrice : course.offlinePrice;
+        
+        const feesResult = await FeesUsecase.createEnrollmentFeesUsecase(
+          user.id,
+          course.id,
+          course,
+          paymentType,
+          courseAmount,
+          selectedMode,
+          emiMonths
+        );
+
+        if (feesResult.success) {
+          setShowPurchaseModal(false);
+          // Success message is handled in FeesUsecase
+        } else {
+          toast.error(feesResult.error || 'Failed to create fees entries');
+        }
+      } else {
+        toast.error(enrollmentResult.error || 'Failed to enroll in course');
+      }
+    } catch (error) {
+      console.error('Error during purchase:', error);
+      toast.error('An unexpected error occurred during enrollment');
     }
   };
 
@@ -549,10 +578,76 @@ const CourseDetails = () => {
               </div>
             </Form.Group>
 
+            {/* Payment Options */}
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-semibold">Payment Options</Form.Label>
+              <div className="d-grid gap-2">
+                <Form.Check
+                  type="radio"
+                  id="fullpay"
+                  name="payment"
+                  value="full"
+                  checked={paymentType === 'full'}
+                  onChange={(e) => setPaymentType(e.target.value)}
+                  label={
+                    <div className="d-flex justify-content-between align-items-center w-100">
+                      <div>
+                        <div className="fw-semibold">Full Payment</div>
+                        <small className="text-muted">Pay the complete amount now</small>
+                      </div>
+                      <span className="fw-bold text-success">
+                        ₹{(selectedMode === 'online' ? course.onlinePrice : course.offlinePrice).toLocaleString()}
+                      </span>
+                    </div>
+                  }
+                  className="border rounded p-3"
+                />
+                <Form.Check
+                  type="radio"
+                  id="emi"
+                  name="payment"
+                  value="emi"
+                  checked={paymentType === 'emi'}
+                  onChange={(e) => setPaymentType(e.target.value)}
+                  label={
+                    <div className="d-flex justify-content-between align-items-center w-100">
+                      <div>
+                        <div className="fw-semibold">EMI Payment</div>
+                        <small className="text-muted">Pay in monthly installments</small>
+                      </div>
+                      <span className="fw-bold text-primary">
+                        ₹{Math.ceil((selectedMode === 'online' ? course.onlinePrice : course.offlinePrice) / emiMonths).toLocaleString()}/month
+                      </span>
+                    </div>
+                  }
+                  className="border rounded p-3"
+                />
+              </div>
+            </Form.Group>
+
+            {/* EMI Duration Selection */}
+            {paymentType === 'emi' && (
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-semibold">EMI Duration</Form.Label>
+                <Form.Select 
+                  value={emiMonths} 
+                  onChange={(e) => setEmiMonths(parseInt(e.target.value))}
+                  className="form-select"
+                >
+                  <option value={3}>3 Months - ₹{Math.ceil((selectedMode === 'online' ? course.onlinePrice : course.offlinePrice) / 3).toLocaleString()}/month</option>
+                  <option value={6}>6 Months - ₹{Math.ceil((selectedMode === 'online' ? course.onlinePrice : course.offlinePrice) / 6).toLocaleString()}/month</option>
+                  <option value={12}>12 Months - ₹{Math.ceil((selectedMode === 'online' ? course.onlinePrice : course.offlinePrice) / 12).toLocaleString()}/month</option>
+                </Form.Select>
+              </Form.Group>
+            )}
+
             <Alert variant="info">
               <small>
                 <strong>Note:</strong> You can switch between online and offline modes during the course.
                 Offline mode includes additional benefits like lab access and face-to-face mentoring.
+                {paymentType === 'emi' && (
+                  <><br /><strong>EMI:</strong> First installment will be charged immediately upon enrollment.</>
+                )}
               </small>
             </Alert>
           </Form>

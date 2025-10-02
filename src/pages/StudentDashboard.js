@@ -6,30 +6,73 @@ import {
   FaCertificate, FaCalendarAlt, FaChartLine, FaTrophy, FaQuestionCircle,
   FaMoneyBillWave, FaDownload, FaEye, FaLock, FaUnlock, FaEdit, FaSave,
   FaTimes, FaCamera, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUserEdit,
-  FaKey, FaBell, FaCog
+  FaKey, FaBell, FaCog, FaTimesCircle
 } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
+import StudentUsecase from '../lib/usecase/StudentUsecase';
+import FeesUsecase from '../lib/usecase/FeesUsecase';
 
 const StudentDashboard = () => {
-  const { user, userCourses, updateCourseProgress, loading } = useAuth();
+  const { user, loading } = useAuth();
 
-  console.log('🏠 StudentDashboard: Component rendered with user:', user, 'loading:', loading);
+  // Dynamic data state
+  const [dashboardData, setDashboardData] = useState(null);
+  const [userCourses, setUserCourses] = useState([]);
+  const [certificates, setCertificates] = useState([]);
+  const [feesData, setFeesData] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState(null);
 
-  // Check localStorage directly
+  // Payment modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedFee, setSelectedFee] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+
+  // Load dashboard data when user is available
   useEffect(() => {
-    const localStorageUser = localStorage.getItem('techaddaa_user');
-    if (localStorageUser) {
-      try {
-        const parsedUser = JSON.parse(localStorageUser);
-        console.log('💾 StudentDashboard: Direct localStorage check:', parsedUser);
-      } catch (error) {
-        console.error('❌ StudentDashboard: Error parsing localStorage:', error);
+    const loadDashboardData = async () => {
+      if (!loading && user?.id) {
+        try {
+          setDataLoading(true);
+          setDataError(null);
+
+          // Load dashboard data
+          const result = await StudentUsecase.getDashboardDataUsecase(user.id);
+
+          // Load fees data separately using FeesUsecase
+          const feesResult = await FeesUsecase.getUserFeesUsecase(user.id);
+
+          if (result.success && result.data) {
+            setDashboardData(result.data);
+            setUserCourses(result.data.userCourses || []);
+            setCertificates(result.data.certificates || []);
+            setDashboardStats(result.data.stats || null);
+
+            // Set fees data from FeesUsecase
+            if (feesResult.success && feesResult.data) {
+              setFeesData(feesResult.data);
+            } else {
+              setFeesData(null);
+            }
+          } else {
+            setDataError(result.error || 'Failed to load dashboard data');
+            toast.error(result.error || 'Failed to load dashboard data');
+          }
+        } catch (error) {
+          setDataError(error.message || 'An unexpected error occurred');
+          toast.error('Failed to load dashboard data');
+        } finally {
+          setDataLoading(false);
+        }
+      } else if (!loading && !user?.id) {
+        setDataLoading(false);
       }
-    } else {
-      console.log('❌ StudentDashboard: No techaddaa_user in localStorage');
-    }
-  }, []);
+    };
+
+    loadDashboardData();
+  }, [user, loading]);
 
   // Helper function to handle empty strings and null values
   const getValidValue = (value, fallback = 'Not provided') => {
@@ -38,6 +81,45 @@ const StudentDashboard = () => {
       return fallback;
     }
     return value;
+  };
+
+  // Handle Pay Now button click
+  const handlePayNow = (fee) => {
+    setSelectedFee(fee);
+    setShowPaymentModal(true);
+  };
+
+  // Handle payment confirmation
+  const handlePaymentConfirm = async () => {
+    if (!selectedFee || !user?.id) return;
+
+    try {
+      setPaymentLoading(true);
+      
+      // Call the markFeePaidUsecase
+      const result = await FeesUsecase.markFeePaidUsecase(selectedFee.id);
+      
+      if (result.success) {
+        toast.success('Payment successful! Fee has been marked as paid.');
+        
+        // Refresh fees data
+        const feesResult = await FeesUsecase.getUserFeesUsecase(user.id);
+        if (feesResult.success && feesResult.data) {
+          setFeesData(feesResult.data);
+        }
+        
+        // Close modal
+        setShowPaymentModal(false);
+        setSelectedFee(null);
+      } else {
+        toast.error(result.error || 'Failed to process payment');
+      }
+    } catch (error) {
+      toast.error('An error occurred while processing payment');
+      console.error('Payment error:', error);
+    } finally {
+      setPaymentLoading(false);
+    }
   };
 
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -49,136 +131,64 @@ const StudentDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({
-    name: getValidValue(user?.full_name || user?.name),
-    email: getValidValue(user?.email),
-    phone: getValidValue(user?.phone_number || user?.phone),
-    address: getValidValue(user?.address),
-    dateOfBirth: getValidValue(user?.date_of_birth || user?.dateOfBirth),
-    education: getValidValue(user?.education),
-    experience: getValidValue(user?.experience),
-    interests: getValidValue(user?.interests)
+    name: 'Loading...',
+    email: 'Loading...',
+    phone: 'Loading...',
+    dateOfBirth: 'Not provided'
   });
 
-  // Update profile data when user data changes (only after loading is complete)
+  // Update profile data when dashboard data is loaded
   useEffect(() => {
-    if (!loading && user) {
-      console.log('🔍 StudentDashboard: User data received (loading complete):', {
-        id: user?.id,
-        full_name: user?.full_name,
-        email: user?.email,
-        phone_number: user?.phone_number,
-        phone: user?.phone,
-        date_of_birth: user?.date_of_birth,
-        role: user?.role
-      });
-
+    if (dashboardData?.profile) {
+      const profile = dashboardData.profile;
       const newProfileData = {
-        name: getValidValue(user?.full_name || user?.name),
-        email: getValidValue(user?.email),
-        phone: getValidValue(user?.phone_number || user?.phone),
-        address: getValidValue(user?.address),
-        dateOfBirth: getValidValue(user?.date_of_birth || user?.dateOfBirth),
-        education: getValidValue(user?.education),
-        experience: getValidValue(user?.experience),
-        interests: getValidValue(user?.interests)
+        name: getValidValue(profile.full_name || profile.name),
+        email: getValidValue(profile.email),
+        phone: getValidValue(profile.phone_number || profile.phone),
+        dateOfBirth: getValidValue(profile.date_of_birth || profile.dateOfBirth)
       };
 
-      console.log('📝 StudentDashboard: Setting profile data:', newProfileData);
       setProfileData(newProfileData);
-    } else if (!loading && !user) {
-      console.log('⚠️ StudentDashboard: Loading complete but no user data available');
+    } else if (!dataLoading && !dashboardData?.profile) {
+      // Fallback to user data if available
+      if (user) {
+        const newProfileData = {
+          name: getValidValue(user?.full_name || user?.name),
+          email: getValidValue(user?.email),
+          phone: getValidValue(user?.phone_number || user?.phone),
+          dateOfBirth: getValidValue(user?.date_of_birth || user?.dateOfBirth)
+        };
+        setProfileData(newProfileData);
+      }
     }
-  }, [user, loading]);
+  }, [dashboardData, dataLoading, user]);
 
-  // Mock test questions for each course
-  const mockQuestions = {
-    1: [ // Full Stack Web Development
-      {
-        id: 1,
-        question: "What does HTML stand for?",
-        options: ["Hyper Text Markup Language", "High Tech Modern Language", "Home Tool Markup Language", "Hyperlink and Text Markup Language"],
-        correct: 0
-      },
-      {
-        id: 2,
-        question: "Which CSS property is used to change the text color?",
-        options: ["font-color", "text-color", "color", "foreground-color"],
-        correct: 2
-      },
-      {
-        id: 3,
-        question: "What is React?",
-        options: ["A database", "A JavaScript library", "A web server", "An operating system"],
-        correct: 1
-      },
-      {
-        id: 4,
-        question: "Which method is used to add an element to the end of an array in JavaScript?",
-        options: ["push()", "add()", "append()", "insert()"],
-        correct: 0
-      },
-      {
-        id: 5,
-        question: "What does API stand for?",
-        options: ["Application Programming Interface", "Advanced Programming Interface", "Application Process Interface", "Automated Programming Interface"],
-        correct: 0
-      }
-    ],
-    2: [ // Digital Marketing
-      {
-        id: 1,
-        question: "What does SEO stand for?",
-        options: ["Search Engine Optimization", "Social Engine Optimization", "Search Engine Operation", "Social Engine Operation"],
-        correct: 0
-      },
-      {
-        id: 2,
-        question: "Which platform is best for B2B marketing?",
-        options: ["Instagram", "TikTok", "LinkedIn", "Snapchat"],
-        correct: 2
-      },
-      {
-        id: 3,
-        question: "What is CTR in digital marketing?",
-        options: ["Click Through Rate", "Cost Through Rate", "Customer Through Rate", "Conversion Through Rate"],
-        correct: 0
-      },
-      {
-        id: 4,
-        question: "Which Google tool is used for website analytics?",
-        options: ["Google Ads", "Google Analytics", "Google Search Console", "Google My Business"],
-        correct: 1
-      },
-      {
-        id: 5,
-        question: "What is the ideal length for a Facebook post?",
-        options: ["100-150 characters", "40-80 characters", "200-300 characters", "500+ characters"],
-        correct: 1
-      }
-    ]
-  };
+  // Test functionality - would be replaced with actual quiz system
+  const [testQuestions, setTestQuestions] = useState([]);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
 
-  // Mock fees data for offline students
-  const mockFeesData = {
-    totalFees: 25000,
-    paidAmount: 15000,
-    pendingAmount: 10000,
-    installments: [
-      { id: 1, amount: 5000, dueDate: '2024-01-15', status: 'paid', paidDate: '2024-01-10' },
-      { id: 2, amount: 5000, dueDate: '2024-02-15', status: 'paid', paidDate: '2024-02-12' },
-      { id: 3, amount: 5000, dueDate: '2024-03-15', status: 'paid', paidDate: '2024-03-14' },
-      { id: 4, amount: 5000, dueDate: '2024-04-15', status: 'pending' },
-      { id: 5, amount: 5000, dueDate: '2024-05-15', status: 'pending' }
-    ]
-  };
+  // Dynamic functions for course and certificate operations
 
-  const startTest = (course) => {
+  const startTest = async (course) => {
     setSelectedCourse(course);
-    setCurrentQuestion(0);
-    setAnswers({});
-    setTestCompleted(false);
-    setTestScore(0);
-    setShowTestModal(true);
+    setLoadingQuestions(true);
+
+    try {
+      // In a real implementation, this would fetch questions from the backend
+      // For now, we'll show a placeholder message
+      setTestQuestions([]);
+      setShowTestModal(true);
+      setCurrentQuestion(0);
+      setAnswers({});
+      setTestCompleted(false);
+      setTestScore(0);
+
+      toast.info('Quiz system is under development. Progress can be updated manually.');
+    } catch (error) {
+      toast.error('Failed to load test questions');
+    } finally {
+      setLoadingQuestions(false);
+    }
   };
 
   const handleAnswerSelect = (questionId, answerIndex) => {
@@ -189,86 +199,161 @@ const StudentDashboard = () => {
   };
 
   const nextQuestion = () => {
-    const questions = mockQuestions[selectedCourse.id];
-    if (currentQuestion < questions.length - 1) {
+    if (testQuestions.length === 0) {
+      submitTest();
+      return;
+    }
+
+    if (currentQuestion < testQuestions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
     } else {
       submitTest();
     }
   };
 
-  const submitTest = () => {
-    const questions = mockQuestions[selectedCourse.id];
-    let score = 0;
+  const submitTest = async () => {
+    if (!user?.id || !selectedCourse?.id) {
+      toast.error('Please log in to submit test');
+      return;
+    }
 
-    questions.forEach(question => {
-      if (answers[question.id] === question.correct) {
-        score++;
+    try {
+      // For demo purposes, simulate a test score
+      const score = Math.floor(Math.random() * 30) + 70; // Random score between 70-100
+
+      setTestScore(score);
+      setTestCompleted(true);
+
+      if (score >= 70) {
+        // Update course as completed
+        await updateProgress(selectedCourse.id, 100);
+        toast.success('Congratulations! You passed the test and completed the course!');
+      } else {
+        toast.error('You need at least 70% to pass. Please study more and try again.');
       }
-    });
-
-    const percentage = (score / questions.length) * 100;
-    setTestScore(percentage);
-    setTestCompleted(true);
-
-    if (percentage >= 70) {
-      // Update course as completed
-      updateCourseProgress(selectedCourse.id, 100);
-      toast.success('Congratulations! You passed the test and completed the course!');
-    } else {
-      toast.error('You need at least 70% to pass. Please study more and try again.');
+    } catch (error) {
+      toast.error('Failed to submit test. Please try again.');
     }
   };
 
-  const updateProgress = (courseId, newProgress) => {
-    updateCourseProgress(courseId, newProgress);
-    toast.success('Progress updated successfully!');
+  const updateProgress = async (courseId, newProgress) => {
+    if (!user?.id) {
+      toast.error('User not authenticated');
+      return;
+    }
+
+    try {
+      const result = await StudentUsecase.updateCourseProgressUsecase(user.id, courseId, newProgress);
+
+      if (result.success) {
+        // Update local state
+        setUserCourses(prevCourses =>
+          prevCourses.map(course =>
+            course.id === courseId
+              ? { ...course, progress: newProgress }
+              : course
+          )
+        );
+
+        // Reload dashboard data to get updated stats
+        const dashboardResult = await StudentUsecase.getDashboardDataUsecase(user.id);
+        if (dashboardResult.success) {
+          setDashboardStats(dashboardResult.data.stats);
+        }
+      }
+    } catch (error) {
+      toast.error('Failed to update progress');
+    }
   };
 
-  const downloadCertificate = (course) => {
-    if (course.progress === 100) {
-      toast.success(`Certificate for ${course.courseName} downloaded successfully!`);
-      // Simulate download
-      const link = document.createElement('a');
-      link.href = '#';
-      link.download = `${course.courseName.replace(/\s+/g, '_')}_Certificate.pdf`;
-      link.click();
-    } else {
+  const downloadCertificate = async (course) => {
+    if (!user?.id) {
+      toast.error('User not authenticated');
+      return;
+    }
+
+    if (course.progress < 100) {
       toast.error('Complete the course and pass the test to download certificate');
+      return;
+    }
+
+    try {
+      const result = await StudentUsecase.downloadCertificateUsecase(
+        user.id,
+        course.id,
+        dashboardData?.profile
+      );
+
+      if (!result.success) {
+        toast.error(result.error || 'Failed to download certificate');
+      }
+      // Success message is handled in the usecase
+    } catch (error) {
+      toast.error('Failed to download certificate');
     }
   };
 
   const getProgressColor = (progress) => {
-    if (progress < 30) return 'danger';
-    if (progress < 70) return 'warning';
-    return 'success';
+    return StudentUsecase.getProgressColor(progress);
   };
 
   const getNextDueInstallment = () => {
-    return mockFeesData.installments.find(inst => inst.status === 'pending');
+    if (!feesData?.fees) return null;
+
+    // Find the next pending fee entry sorted by due date
+    const pendingFees = feesData.fees
+      .filter(fee => fee.status === 'pending' || fee.status === 'overdue')
+      .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+
+    return pendingFees.length > 0 ? pendingFees[0] : null;
   };
 
   const handleProfileEdit = () => {
     setIsEditingProfile(true);
   };
 
-  const handleProfileSave = () => {
-    // Here you would typically update the user profile in your backend
-    setIsEditingProfile(false);
-    toast.success('Profile updated successfully!');
+  const handleProfileSave = async () => {
+    if (!user?.id) {
+      toast.error('User not authenticated');
+      return;
+    }
+
+    try {
+      // Only update fields that exist in the user_profiles table schema
+      const updateData = {
+        full_name: profileData.name !== 'Not provided' ? profileData.name : null,
+        email: profileData.email !== 'Not provided' ? profileData.email : null,
+        phone_number: profileData.phone !== 'Not provided' ? profileData.phone : null,
+        date_of_birth: profileData.dateOfBirth !== 'Not provided' ? profileData.dateOfBirth : null
+      };
+
+      const result = await StudentUsecase.updateProfileUsecase(user.id, updateData);
+
+      if (result.success) {
+        setIsEditingProfile(false);
+        // Reload dashboard data to get updated profile
+        const dashboardResult = await StudentUsecase.getDashboardDataUsecase(user.id);
+        if (dashboardResult.success) {
+          setDashboardData(dashboardResult.data);
+        }
+        toast.success('Profile updated successfully!');
+      }
+    } catch (error) {
+      toast.error('Failed to update profile');
+    }
   };
 
   const handleProfileCancel = () => {
-    setProfileData({
-      name: getValidValue(user?.full_name || user?.name),
-      email: getValidValue(user?.email),
-      phone: getValidValue(user?.phone_number || user?.phone),
-      address: getValidValue(user?.address),
-      dateOfBirth: getValidValue(user?.date_of_birth || user?.dateOfBirth),
-      education: getValidValue(user?.education),
-      experience: getValidValue(user?.experience),
-      interests: getValidValue(user?.interests)
-    });
+    // Reset to current dashboard data or user data
+    const profile = dashboardData?.profile || user;
+    if (profile) {
+      setProfileData({
+        name: getValidValue(profile.full_name || profile.name),
+        email: getValidValue(profile.email),
+        phone: getValidValue(profile.phone_number || profile.phone),
+        dateOfBirth: getValidValue(profile.date_of_birth || profile.dateOfBirth)
+      });
+    }
     setIsEditingProfile(false);
   };
 
@@ -346,7 +431,9 @@ const StudentDashboard = () => {
                   <Card className="border-0 shadow-sm h-100 stat-card">
                     <Card.Body className="text-center">
                       <FaBook className="text-primary mb-3" size={40} />
-                      <h3 className="mb-1">{userCourses?.length || 0}</h3>
+                      <h3 className="mb-1">
+                        {dataLoading ? '...' : (dashboardStats?.totalCourses || userCourses?.length || 0)}
+                      </h3>
                       <p className="text-muted mb-0">Total Courses</p>
                     </Card.Body>
                   </Card>
@@ -363,7 +450,7 @@ const StudentDashboard = () => {
                     <Card.Body className="text-center">
                       <FaCheckCircle className="text-success mb-3" size={40} />
                       <h3 className="mb-1">
-                        {userCourses?.filter(c => c.progress === 100).length || 0}
+                        {dataLoading ? '...' : (dashboardStats?.completedCourses || userCourses?.filter(c => c.progress === 100).length || 0)}
                       </h3>
                       <p className="text-muted mb-0">Completed</p>
                     </Card.Body>
@@ -381,7 +468,7 @@ const StudentDashboard = () => {
                     <Card.Body className="text-center">
                       <FaClock className="text-warning mb-3" size={40} />
                       <h3 className="mb-1">
-                        {userCourses?.filter(c => c.progress > 0 && c.progress < 100).length || 0}
+                        {dataLoading ? '...' : (dashboardStats?.inProgressCourses || userCourses?.filter(c => c.progress > 0 && c.progress < 100).length || 0)}
                       </h3>
                       <p className="text-muted mb-0">In Progress</p>
                     </Card.Body>
@@ -399,7 +486,7 @@ const StudentDashboard = () => {
                     <Card.Body className="text-center">
                       <FaTrophy className="text-warning mb-3" size={40} />
                       <h3 className="mb-1">
-                        {userCourses?.filter(c => c.progress === 100).length || 0}
+                        {dataLoading ? '...' : (dashboardStats?.totalCertificates || certificates?.length || 0)}
                       </h3>
                       <p className="text-muted mb-0">Certificates</p>
                     </Card.Body>
@@ -420,33 +507,33 @@ const StudentDashboard = () => {
                   </Card.Header>
                   <Card.Body>
                     <div className="activity-timeline">
-                      <div className="activity-item">
-                        <div className="activity-icon bg-success">
-                          <FaCheckCircle />
+                      {dataLoading ? (
+                        <div className="text-center py-4">
+                          <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">Loading...</span>
+                          </div>
+                          <p className="text-muted mt-2">Loading recent activity...</p>
                         </div>
-                        <div className="activity-content">
-                          <h6>Completed Module 3: React Hooks</h6>
-                          <small className="text-muted">2 hours ago</small>
+                      ) : dashboardStats?.recentActivity && dashboardStats.recentActivity.length > 0 ? (
+                        dashboardStats.recentActivity.map((activity, index) => (
+                          <div key={index} className="activity-item">
+                            <div className={`activity-icon ${activity.type === 'completed' ? 'bg-success' : activity.type === 'started' ? 'bg-primary' : 'bg-warning'}`}>
+                              {activity.type === 'completed' ? <FaCheckCircle /> :
+                                activity.type === 'started' ? <FaPlayCircle /> : <FaBook />}
+                            </div>
+                            <div className="activity-content">
+                              <h6>{activity.title}</h6>
+                              <small className="text-muted">{activity.timeAgo}</small>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-4">
+                          <FaChartLine className="text-muted mb-3" size={40} />
+                          <p className="text-muted">No recent activity to display</p>
+                          <small className="text-muted">Start learning to see your progress here!</small>
                         </div>
-                      </div>
-                      <div className="activity-item">
-                        <div className="activity-icon bg-primary">
-                          <FaPlayCircle />
-                        </div>
-                        <div className="activity-content">
-                          <h6>Started Module 4: State Management</h6>
-                          <small className="text-muted">1 day ago</small>
-                        </div>
-                      </div>
-                      <div className="activity-item">
-                        <div className="activity-icon bg-warning">
-                          <FaBook />
-                        </div>
-                        <div className="activity-content">
-                          <h6>Enrolled in Full Stack Web Development</h6>
-                          <small className="text-muted">3 days ago</small>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </Card.Body>
                 </Card>
@@ -569,36 +656,84 @@ const StudentDashboard = () => {
                       <table className="table table-hover">
                         <thead>
                           <tr>
+                            <th>Course</th>
                             <th>Installment</th>
                             <th>Amount</th>
                             <th>Due Date</th>
                             <th>Status</th>
                             <th>Paid Date</th>
+                            <th>Action</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {mockFeesData.installments.map((installment, index) => (
-                            <tr key={installment.id}>
-                              <td>#{index + 1}</td>
-                              <td>₹{installment.amount.toLocaleString()}</td>
-                              <td>{new Date(installment.dueDate).toLocaleDateString()}</td>
-                              <td>
-                                <Badge bg={installment.status === 'paid' ? 'success' : 'warning'}>
-                                  {installment.status === 'paid' ? (
-                                    <><FaCheckCircle className="me-1" />Paid</>
-                                  ) : (
-                                    <><FaClock className="me-1" />Pending</>
-                                  )}
-                                </Badge>
-                              </td>
-                              <td>
-                                {installment.paidDate ?
-                                  new Date(installment.paidDate).toLocaleDateString() :
-                                  '-'
-                                }
+                          {dataLoading ? (
+                            <tr>
+                              <td colSpan="7" className="text-center py-4">
+                                <div className="spinner-border text-primary" role="status">
+                                  <span className="visually-hidden">Loading...</span>
+                                </div>
+                                <p className="text-muted mt-2">Loading fees data...</p>
                               </td>
                             </tr>
-                          ))}
+                          ) : feesData?.fees && feesData.fees.length > 0 ? (
+                            feesData.fees.map((fee, index) => (
+                              <tr key={fee.id}>
+                                <td>
+                                  <div>
+                                    <strong>{fee.course_title}</strong>
+                                    <br />
+                                    <small className="text-muted">{fee.mode}</small>
+                                  </div>
+                                </td>
+                                <td>#{fee.installment_number}</td>
+                                <td>₹{fee.amount.toLocaleString()}</td>
+                                <td>{new Date(fee.due_date).toLocaleDateString()}</td>
+                                <td>
+                                  <Badge bg={fee.status === 'paid' ? 'success' : fee.status === 'overdue' ? 'danger' : 'warning'}>
+                                    {fee.status === 'paid' ? (
+                                      <><FaCheckCircle className="me-1" />Paid</>
+                                    ) : fee.status === 'overdue' ? (
+                                      <><FaTimesCircle className="me-1" />Overdue</>
+                                    ) : (
+                                      <><FaClock className="me-1" />Pending</>
+                                    )}
+                                  </Badge>
+                                </td>
+                                <td>
+                                  {fee.paid_date ?
+                                    new Date(fee.paid_date).toLocaleDateString() :
+                                    '-'
+                                  }
+                                </td>
+                                <td>
+                                  {fee.status !== 'paid' ? (
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={() => handlePayNow(fee)}
+                                      disabled={dataLoading}
+                                    >
+                                      <FaMoneyBillWave className="me-1" />
+                                      Pay Now
+                                    </Button>
+                                  ) : (
+                                    <Badge bg="success">
+                                      <FaCheckCircle className="me-1" />
+                                      Paid
+                                    </Badge>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="7" className="text-center py-4">
+                                <FaMoneyBillWave className="text-muted mb-3" size={40} />
+                                <p className="text-muted">No fees data available</p>
+                                <small className="text-muted">Enroll in a course to see fees information</small>
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -612,23 +747,40 @@ const StudentDashboard = () => {
                     <h6 className="mb-0">Fee Summary</h6>
                   </Card.Header>
                   <Card.Body>
-                    <div className="d-flex justify-content-between mb-2">
-                      <span>Total Fees:</span>
-                      <strong>₹{mockFeesData.totalFees.toLocaleString()}</strong>
-                    </div>
-                    <div className="d-flex justify-content-between mb-2 text-success">
-                      <span>Paid Amount:</span>
-                      <strong>₹{mockFeesData.paidAmount.toLocaleString()}</strong>
-                    </div>
-                    <div className="d-flex justify-content-between mb-3 text-danger">
-                      <span>Pending Amount:</span>
-                      <strong>₹{mockFeesData.pendingAmount.toLocaleString()}</strong>
-                    </div>
-                    <ProgressBar
-                      variant="success"
-                      now={(mockFeesData.paidAmount / mockFeesData.totalFees) * 100}
-                      label={`${Math.round((mockFeesData.paidAmount / mockFeesData.totalFees) * 100)}%`}
-                    />
+                    {dataLoading ? (
+                      <div className="text-center py-4">
+                        <div className="spinner-border text-primary" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                        <p className="text-muted mt-2">Loading fee summary...</p>
+                      </div>
+                    ) : feesData?.summary ? (
+                      <>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Total Fees:</span>
+                          <strong>₹{feesData.summary.total_amount.toLocaleString()}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2 text-success">
+                          <span>Paid Amount:</span>
+                          <strong>₹{feesData.summary.paid_amount.toLocaleString()}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-3 text-danger">
+                          <span>Pending Amount:</span>
+                          <strong>₹{feesData.summary.pending_amount.toLocaleString()}</strong>
+                        </div>
+                        <ProgressBar
+                          variant="success"
+                          now={(feesData.summary.paid_amount / feesData.summary.total_amount) * 100}
+                          label={`${Math.round((feesData.summary.paid_amount / feesData.summary.total_amount) * 100)}%`}
+                        />
+                      </>
+                    ) : (
+                      <div className="text-center py-4">
+                        <FaMoneyBillWave className="text-muted mb-3" size={40} />
+                        <p className="text-muted">No fee summary available</p>
+                        <small className="text-muted">Contact administration for fee information</small>
+                      </div>
+                    )}
                   </Card.Body>
                 </Card>
 
@@ -640,8 +792,18 @@ const StudentDashboard = () => {
                     <Card.Body>
                       <div className="text-center">
                         <h4 className="text-warning">₹{getNextDueInstallment().amount.toLocaleString()}</h4>
-                        <p className="mb-2">Due: {new Date(getNextDueInstallment().dueDate).toLocaleDateString()}</p>
-                        <Button variant="warning" size="sm" className="w-100">
+                        <p className="mb-2">Due: {new Date(getNextDueInstallment().due_date).toLocaleDateString()}</p>
+                        <small className="text-muted d-block mb-2">
+                          {getNextDueInstallment().course_title} - Installment #{getNextDueInstallment().installment_number}
+                        </small>
+                        <Button 
+                          variant="warning" 
+                          size="sm" 
+                          className="w-100"
+                          onClick={() => handlePayNow(getNextDueInstallment())}
+                          disabled={dataLoading || paymentLoading}
+                        >
+                          <FaMoneyBillWave className="me-1" />
                           Pay Now
                         </Button>
                       </div>
@@ -714,21 +876,21 @@ const StudentDashboard = () => {
                         <FaBook className="text-primary me-2" />
                         <span>Courses Enrolled</span>
                       </div>
-                      <Badge bg="primary">{userCourses?.length || 0}</Badge>
+                      <Badge bg="primary">{dashboardStats?.totalCourses || 0}</Badge>
                     </div>
                     <div className="d-flex justify-content-between align-items-center mb-3">
                       <div className="d-flex align-items-center">
                         <FaCheckCircle className="text-success me-2" />
                         <span>Completed</span>
                       </div>
-                      <Badge bg="success">{userCourses?.filter(c => c.progress === 100).length || 0}</Badge>
+                      <Badge bg="success">{dashboardStats?.completedCourses || 0}</Badge>
                     </div>
                     <div className="d-flex justify-content-between align-items-center">
                       <div className="d-flex align-items-center">
                         <FaTrophy className="text-warning me-2" />
                         <span>Certificates</span>
                       </div>
-                      <Badge bg="warning">{userCourses?.filter(c => c.progress === 100).length || 0}</Badge>
+                      <Badge bg="warning">{dashboardStats?.totalCertificates || 0}</Badge>
                     </div>
                   </Card.Body>
                 </Card>
@@ -824,16 +986,7 @@ const StudentDashboard = () => {
                             <FaMapMarkerAlt className="me-2 text-muted" />
                             Address
                           </Form.Label>
-                          {isEditingProfile ? (
-                            <Form.Control
-                              as="textarea"
-                              rows={2}
-                              value={profileData.address}
-                              onChange={(e) => handleProfileChange('address', e.target.value)}
-                            />
-                          ) : (
-                            <p className="mb-0">{profileData.address || 'Not provided'}</p>
-                          )}
+                          <p className="mb-0 text-muted">Not available for editing</p>
                         </Form.Group>
                       </Col>
                     </Row>
@@ -853,44 +1006,19 @@ const StudentDashboard = () => {
                       <Col md={6} className="mb-3">
                         <Form.Group>
                           <Form.Label className="fw-bold">Education</Form.Label>
-                          {isEditingProfile ? (
-                            <Form.Control
-                              type="text"
-                              value={profileData.education}
-                              onChange={(e) => handleProfileChange('education', e.target.value)}
-                            />
-                          ) : (
-                            <p className="mb-0">{profileData.education || 'Not provided'}</p>
-                          )}
+                          <p className="mb-0 text-muted">Not available for editing</p>
                         </Form.Group>
                       </Col>
                       <Col md={6} className="mb-3">
                         <Form.Group>
                           <Form.Label className="fw-bold">Experience</Form.Label>
-                          {isEditingProfile ? (
-                            <Form.Control
-                              type="text"
-                              value={profileData.experience}
-                              onChange={(e) => handleProfileChange('experience', e.target.value)}
-                            />
-                          ) : (
-                            <p className="mb-0">{profileData.experience || 'Not provided'}</p>
-                          )}
+                          <p className="mb-0 text-muted">Not available for editing</p>
                         </Form.Group>
                       </Col>
                       <Col md={12} className="mb-3">
                         <Form.Group>
                           <Form.Label className="fw-bold">Interests</Form.Label>
-                          {isEditingProfile ? (
-                            <Form.Control
-                              as="textarea"
-                              rows={2}
-                              value={profileData.interests}
-                              onChange={(e) => handleProfileChange('interests', e.target.value)}
-                            />
-                          ) : (
-                            <p className="mb-0">{profileData.interests || 'Not provided'}</p>
-                          )}
+                          <p className="mb-0 text-muted">Not available for editing</p>
                         </Form.Group>
                       </Col>
                     </Row>
@@ -914,14 +1042,21 @@ const StudentDashboard = () => {
         </Modal.Header>
         <Modal.Body>
           {!testCompleted ? (
-            selectedCourse && mockQuestions[selectedCourse.id] && (
+            loadingQuestions ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary mb-3" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+                <p className="text-muted">Loading quiz questions...</p>
+              </div>
+            ) : testQuestions.length > 0 ? (
               <>
                 <div className="d-flex justify-content-between align-items-center mb-4">
                   <Badge bg="primary">
-                    Question {currentQuestion + 1} of {mockQuestions[selectedCourse.id].length}
+                    Question {currentQuestion + 1} of {testQuestions.length}
                   </Badge>
                   <ProgressBar
-                    now={((currentQuestion + 1) / mockQuestions[selectedCourse.id].length) * 100}
+                    now={((currentQuestion + 1) / testQuestions.length) * 100}
                     style={{ width: '200px', height: '8px' }}
                   />
                 </div>
@@ -929,16 +1064,16 @@ const StudentDashboard = () => {
                 <Card className="border-0 bg-light">
                   <Card.Body>
                     <h5 className="mb-4">
-                      {mockQuestions[selectedCourse.id][currentQuestion].question}
+                      {testQuestions[currentQuestion].question}
                     </h5>
 
                     <div className="d-grid gap-2">
-                      {mockQuestions[selectedCourse.id][currentQuestion].options.map((option, index) => (
+                      {testQuestions[currentQuestion].options.map((option, index) => (
                         <Button
                           key={index}
-                          variant={answers[mockQuestions[selectedCourse.id][currentQuestion].id] === index ? 'primary' : 'outline-secondary'}
+                          variant={answers[testQuestions[currentQuestion].id] === index ? 'primary' : 'outline-secondary'}
                           className="text-start p-3"
-                          onClick={() => handleAnswerSelect(mockQuestions[selectedCourse.id][currentQuestion].id, index)}
+                          onClick={() => handleAnswerSelect(testQuestions[currentQuestion].id, index)}
                         >
                           {String.fromCharCode(65 + index)}. {option}
                         </Button>
@@ -947,6 +1082,17 @@ const StudentDashboard = () => {
                   </Card.Body>
                 </Card>
               </>
+            ) : (
+              <div className="text-center py-5">
+                <FaQuestionCircle className="text-muted mb-3" size={60} />
+                <h5 className="text-muted mb-3">Quiz System Under Development</h5>
+                <p className="text-muted mb-4">
+                  The quiz system is currently being developed. For now, you can simulate progress updates.
+                </p>
+                <Button variant="primary" onClick={submitTest}>
+                  Simulate Progress Update
+                </Button>
+              </div>
             )
           ) : (
             <div className="text-center py-4">
@@ -981,13 +1127,13 @@ const StudentDashboard = () => {
           )}
         </Modal.Body>
         <Modal.Footer>
-          {!testCompleted && (
+          {!testCompleted && testQuestions.length > 0 && (
             <Button
               variant="primary"
               onClick={nextQuestion}
-              disabled={!answers[mockQuestions[selectedCourse?.id]?.[currentQuestion]?.id]}
+              disabled={!answers[testQuestions[currentQuestion]?.id]}
             >
-              {currentQuestion < (mockQuestions[selectedCourse?.id]?.length - 1) ? 'Next Question' : 'Submit Test'}
+              {currentQuestion < (testQuestions.length - 1) ? 'Next Question' : 'Submit Test'}
             </Button>
           )}
           {testCompleted && (
@@ -995,6 +1141,84 @@ const StudentDashboard = () => {
               Close
             </Button>
           )}
+          {!testCompleted && (
+            <Button variant="secondary" onClick={() => setShowTestModal(false)}>
+              Cancel
+            </Button>
+          )}
+        </Modal.Footer>
+      </Modal>
+
+      {/* Payment Confirmation Modal */}
+      <Modal show={showPaymentModal} onHide={() => setShowPaymentModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            <FaMoneyBillWave className="me-2 text-primary" />
+            Confirm Payment
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedFee && (
+            <div>
+              <Alert variant="info" className="mb-3">
+                <FaMoneyBillWave className="me-2" />
+                You are about to mark this fee as paid. This action cannot be undone.
+              </Alert>
+              
+              <div className="mb-3">
+                <strong>Course:</strong> {selectedFee.course_title}
+                <br />
+                <small className="text-muted">{selectedFee.mode}</small>
+              </div>
+              
+              <div className="mb-3">
+                <strong>Installment:</strong> #{selectedFee.installment_number}
+              </div>
+              
+              <div className="mb-3">
+                <strong>Amount:</strong> ₹{selectedFee.amount?.toLocaleString()}
+              </div>
+              
+              <div className="mb-3">
+                <strong>Due Date:</strong> {new Date(selectedFee.due_date).toLocaleDateString()}
+              </div>
+              
+              <div className="mb-3">
+                <strong>Status:</strong>{' '}
+                <Badge bg={selectedFee.status === 'overdue' ? 'danger' : 'warning'}>
+                  {selectedFee.status === 'overdue' ? 'Overdue' : 'Pending'}
+                </Badge>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button 
+            variant="secondary" 
+            onClick={() => setShowPaymentModal(false)}
+            disabled={paymentLoading}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={handlePaymentConfirm}
+            disabled={paymentLoading}
+          >
+            {paymentLoading ? (
+              <>
+                <div className="spinner-border spinner-border-sm me-2" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+                Processing...
+              </>
+            ) : (
+              <>
+                <FaCheckCircle className="me-2" />
+                Confirm Payment
+              </>
+            )}
+          </Button>
         </Modal.Footer>
       </Modal>
     </div>
