@@ -45,7 +45,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/courses" element={<Courses />} />
-          <Route path="/course/:id" element={<CourseDetails />} />
+          <Route path="/course" element={<CourseDetails />} />
           <Route path="/events" element={<Events />} />
           <Route path="/certificate" element={<CertificateDownload />} />
           <Route path="/login" element={<Login />} />

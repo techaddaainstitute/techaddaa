@@ -432,7 +432,7 @@ const Home = () => {
                     transition={{ duration: 0.3 }}
                   >
                     <Link 
-                      to={`/course/${course.id}`} 
+                      to={`/course?id=${course.id}`} 
                       className="text-decoration-none"
                       style={{ cursor: 'pointer' }}
                     >

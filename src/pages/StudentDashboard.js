@@ -1,16 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, ProgressBar, Badge, Modal, Form, Alert, Tab, Tabs } from 'react-bootstrap';
 import { motion } from 'framer-motion';
-import { 
-  FaUser, FaBook, FaClock, FaCheckCircle, FaPlayCircle, FaPause, 
+import {
+  FaUser, FaBook, FaClock, FaCheckCircle, FaPlayCircle, FaPause,
   FaCertificate, FaCalendarAlt, FaChartLine, FaTrophy, FaQuestionCircle,
-  FaMoneyBillWave, FaDownload, FaEye, FaLock, FaUnlock
+  FaMoneyBillWave, FaDownload, FaEye, FaLock, FaUnlock, FaEdit, FaSave,
+  FaTimes, FaCamera, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUserEdit,
+  FaKey, FaBell, FaCog
 } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 
 const StudentDashboard = () => {
-  const { user, userCourses, updateCourseProgress } = useAuth();
+  const { user, userCourses, updateCourseProgress, loading } = useAuth();
+
+  console.log('🏠 StudentDashboard: Component rendered with user:', user, 'loading:', loading);
+
+  // Check localStorage directly
+  useEffect(() => {
+    const localStorageUser = localStorage.getItem('techaddaa_user');
+    if (localStorageUser) {
+      try {
+        const parsedUser = JSON.parse(localStorageUser);
+        console.log('💾 StudentDashboard: Direct localStorage check:', parsedUser);
+      } catch (error) {
+        console.error('❌ StudentDashboard: Error parsing localStorage:', error);
+      }
+    } else {
+      console.log('❌ StudentDashboard: No techaddaa_user in localStorage');
+    }
+  }, []);
+
+  // Helper function to handle empty strings and null values
+  const getValidValue = (value, fallback = 'Not provided') => {
+    // Handle null, undefined, empty string, or whitespace-only strings
+    if (value === null || value === undefined || value === '' || (typeof value === 'string' && value.trim() === '')) {
+      return fallback;
+    }
+    return value;
+  };
+
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [showTestModal, setShowTestModal] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -18,6 +47,48 @@ const StudentDashboard = () => {
   const [testCompleted, setTestCompleted] = useState(false);
   const [testScore, setTestScore] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: getValidValue(user?.full_name || user?.name),
+    email: getValidValue(user?.email),
+    phone: getValidValue(user?.phone_number || user?.phone),
+    address: getValidValue(user?.address),
+    dateOfBirth: getValidValue(user?.date_of_birth || user?.dateOfBirth),
+    education: getValidValue(user?.education),
+    experience: getValidValue(user?.experience),
+    interests: getValidValue(user?.interests)
+  });
+
+  // Update profile data when user data changes (only after loading is complete)
+  useEffect(() => {
+    if (!loading && user) {
+      console.log('🔍 StudentDashboard: User data received (loading complete):', {
+        id: user?.id,
+        full_name: user?.full_name,
+        email: user?.email,
+        phone_number: user?.phone_number,
+        phone: user?.phone,
+        date_of_birth: user?.date_of_birth,
+        role: user?.role
+      });
+
+      const newProfileData = {
+        name: getValidValue(user?.full_name || user?.name),
+        email: getValidValue(user?.email),
+        phone: getValidValue(user?.phone_number || user?.phone),
+        address: getValidValue(user?.address),
+        dateOfBirth: getValidValue(user?.date_of_birth || user?.dateOfBirth),
+        education: getValidValue(user?.education),
+        experience: getValidValue(user?.experience),
+        interests: getValidValue(user?.interests)
+      };
+
+      console.log('📝 StudentDashboard: Setting profile data:', newProfileData);
+      setProfileData(newProfileData);
+    } else if (!loading && !user) {
+      console.log('⚠️ StudentDashboard: Loading complete but no user data available');
+    }
+  }, [user, loading]);
 
   // Mock test questions for each course
   const mockQuestions = {
@@ -129,17 +200,17 @@ const StudentDashboard = () => {
   const submitTest = () => {
     const questions = mockQuestions[selectedCourse.id];
     let score = 0;
-    
+
     questions.forEach(question => {
       if (answers[question.id] === question.correct) {
         score++;
       }
     });
-    
+
     const percentage = (score / questions.length) * 100;
     setTestScore(percentage);
     setTestCompleted(true);
-    
+
     if (percentage >= 70) {
       // Update course as completed
       updateCourseProgress(selectedCourse.id, 100);
@@ -177,6 +248,41 @@ const StudentDashboard = () => {
     return mockFeesData.installments.find(inst => inst.status === 'pending');
   };
 
+  const handleProfileEdit = () => {
+    setIsEditingProfile(true);
+  };
+
+  const handleProfileSave = () => {
+    // Here you would typically update the user profile in your backend
+    setIsEditingProfile(false);
+    toast.success('Profile updated successfully!');
+  };
+
+  const handleProfileCancel = () => {
+    setProfileData({
+      name: getValidValue(user?.full_name || user?.name),
+      email: getValidValue(user?.email),
+      phone: getValidValue(user?.phone_number || user?.phone),
+      address: getValidValue(user?.address),
+      dateOfBirth: getValidValue(user?.date_of_birth || user?.dateOfBirth),
+      education: getValidValue(user?.education),
+      experience: getValidValue(user?.experience),
+      interests: getValidValue(user?.interests)
+    });
+    setIsEditingProfile(false);
+  };
+
+  const handleProfileChange = (field, value) => {
+    setProfileData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleProfilePictureUpload = () => {
+    toast.info('Profile picture upload functionality will be implemented soon!');
+  };
+
   return (
     <div className="student-dashboard">
       <Container fluid className="py-4">
@@ -194,7 +300,7 @@ const StudentDashboard = () => {
                     <Col md={8}>
                       <h2 className="mb-2">
                         <FaUser className="me-2" />
-                        Welcome back, {user?.name}!
+                        Welcome back, {user?.full_name || user?.name || 'Student'}!
                       </h2>
                       <p className="mb-0 opacity-75">
                         Continue your learning journey and track your progress
@@ -374,9 +480,9 @@ const StudentDashboard = () => {
                             </div>
                           </div>
 
-                          <ProgressBar 
+                          <ProgressBar
                             variant={getProgressColor(course.progress)}
-                            now={course.progress} 
+                            now={course.progress}
                             className="mb-3"
                             style={{ height: '8px' }}
                           />
@@ -393,8 +499,8 @@ const StudentDashboard = () => {
                           </div>
 
                           <div className="d-flex gap-2">
-                            <Button 
-                              variant="outline-primary" 
+                            <Button
+                              variant="outline-primary"
                               size="sm"
                               onClick={() => updateProgress(course.id, Math.min(course.progress + 10, 90))}
                               disabled={course.progress >= 90}
@@ -402,10 +508,10 @@ const StudentDashboard = () => {
                               <FaPlayCircle className="me-1" />
                               Continue
                             </Button>
-                            
+
                             {course.progress >= 90 && (
-                              <Button 
-                                variant="warning" 
+                              <Button
+                                variant="warning"
                                 size="sm"
                                 onClick={() => startTest(course)}
                               >
@@ -413,10 +519,10 @@ const StudentDashboard = () => {
                                 Take Test
                               </Button>
                             )}
-                            
+
                             {course.progress === 100 && (
-                              <Button 
-                                variant="success" 
+                              <Button
+                                variant="success"
                                 size="sm"
                                 onClick={() => downloadCertificate(course)}
                               >
@@ -486,8 +592,8 @@ const StudentDashboard = () => {
                                 </Badge>
                               </td>
                               <td>
-                                {installment.paidDate ? 
-                                  new Date(installment.paidDate).toLocaleDateString() : 
+                                {installment.paidDate ?
+                                  new Date(installment.paidDate).toLocaleDateString() :
                                   '-'
                                 }
                               </td>
@@ -518,7 +624,7 @@ const StudentDashboard = () => {
                       <span>Pending Amount:</span>
                       <strong>₹{mockFeesData.pendingAmount.toLocaleString()}</strong>
                     </div>
-                    <ProgressBar 
+                    <ProgressBar
                       variant="success"
                       now={(mockFeesData.paidAmount / mockFeesData.totalFees) * 100}
                       label={`${Math.round((mockFeesData.paidAmount / mockFeesData.totalFees) * 100)}%`}
@@ -545,6 +651,256 @@ const StudentDashboard = () => {
               </Col>
             </Row>
           </Tab>
+
+          {/* Profile Tab */}
+          <Tab eventKey="profile" title={<><FaUserEdit className="me-2" />Profile</>}>
+            <Row>
+              <Col lg={4}>
+                {/* Profile Picture and Basic Info */}
+                <Card className="border-0 shadow-sm mb-4">
+                  <Card.Body className="text-center">
+                    <div className="position-relative d-inline-block mb-3">
+                      <div
+                        className="rounded-circle bg-primary d-flex align-items-center justify-content-center mx-auto"
+                        style={{ width: '120px', height: '120px', fontSize: '48px', color: 'white' }}
+                      >
+                        <FaUser />
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="position-absolute bottom-0 end-0 rounded-circle"
+                        style={{ width: '35px', height: '35px' }}
+                        onClick={handleProfilePictureUpload}
+                      >
+                        <FaCamera size={14} />
+                      </Button>
+                    </div>
+                    <h4 className="mb-1">{profileData.name || 'Student Name'}</h4>
+                    <p className="text-muted mb-3">{profileData.email || 'No email provided'}</p>
+                    <Badge bg="primary" className="mb-3">Student</Badge>
+
+                    <div className="d-grid gap-2">
+                      {!isEditingProfile ? (
+                        <Button variant="outline-primary" onClick={handleProfileEdit}>
+                          <FaEdit className="me-2" />
+                          Edit Profile
+                        </Button>
+                      ) : (
+                        <>
+                          <Button variant="success" onClick={handleProfileSave}>
+                            <FaSave className="me-2" />
+                            Save Changes
+                          </Button>
+                          <Button variant="outline-secondary" onClick={handleProfileCancel}>
+                            <FaTimes className="me-2" />
+                            Cancel
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </Card.Body>
+                </Card>
+
+
+                {/* Quick Stats */}
+                <Card className="border-0 shadow-sm">
+                  <Card.Header className="bg-white border-0">
+                    <h6 className="mb-0">Learning Stats</h6>
+                  </Card.Header>
+                  <Card.Body>
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <div className="d-flex align-items-center">
+                        <FaBook className="text-primary me-2" />
+                        <span>Courses Enrolled</span>
+                      </div>
+                      <Badge bg="primary">{userCourses?.length || 0}</Badge>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <div className="d-flex align-items-center">
+                        <FaCheckCircle className="text-success me-2" />
+                        <span>Completed</span>
+                      </div>
+                      <Badge bg="success">{userCourses?.filter(c => c.progress === 100).length || 0}</Badge>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div className="d-flex align-items-center">
+                        <FaTrophy className="text-warning me-2" />
+                        <span>Certificates</span>
+                      </div>
+                      <Badge bg="warning">{userCourses?.filter(c => c.progress === 100).length || 0}</Badge>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={8}>
+                {/* Personal Information */}
+                <Card className="border-0 shadow-sm mb-4">
+                  <Card.Header className="bg-white border-0">
+                    <h5 className="mb-0">
+                      <FaUser className="me-2 text-primary" />
+                      Personal Information
+                    </h5>
+                  </Card.Header>
+                  <Card.Body>
+                    <Row>
+                      <Col md={6} className="mb-3">
+                        <Form.Group>
+                          <Form.Label className="fw-bold">
+                            <FaUser className="me-2 text-muted" />
+                            Full Name
+                          </Form.Label>
+                          {isEditingProfile ? (
+                            <Form.Control
+                              type="text"
+                              value={profileData.name}
+                              onChange={(e) => handleProfileChange('name', e.target.value)}
+                            />
+                          ) : (
+                            <p className="mb-0">{profileData.name || 'Not provided'}</p>
+                          )}
+                        </Form.Group>
+                      </Col>
+                      <Col md={6} className="mb-3">
+                        <Form.Group>
+                          <Form.Label className="fw-bold">
+                            <FaEnvelope className="me-2 text-muted" />
+                            Email Address
+                          </Form.Label>
+                          {isEditingProfile ? (
+                            <Form.Control
+                              type="email"
+                              value={profileData.email}
+                              onChange={(e) => handleProfileChange('email', e.target.value)}
+                            />
+                          ) : (
+                            <p className="mb-0">{profileData.email || 'Not provided'}</p>
+                          )}
+                        </Form.Group>
+                      </Col>
+                      <Col md={6} className="mb-3">
+                        <Form.Group>
+                          <Form.Label className="fw-bold">
+                            <FaPhone className="me-2 text-muted" />
+                            Phone Number
+                          </Form.Label>
+                          {isEditingProfile ? (
+                            <Form.Control
+                              type="tel"
+                              value={profileData.phone}
+                              onChange={(e) => handleProfileChange('phone', e.target.value)}
+                            />
+                          ) : (
+                            <p className="mb-0">{profileData.phone || 'Not provided'}</p>
+                          )}
+                        </Form.Group>
+                      </Col>
+                      <Col md={6} className="mb-3">
+                        <Form.Group>
+                          <Form.Label className="fw-bold">
+                            <FaCalendarAlt className="me-2 text-muted" />
+                            Date of Birth
+                          </Form.Label>
+                          {isEditingProfile ? (
+                            <Form.Control
+                              type="date"
+                              value={profileData.dateOfBirth}
+                              onChange={(e) => handleProfileChange('dateOfBirth', e.target.value)}
+                            />
+                          ) : (
+                            <p className="mb-0">
+                              {profileData.dateOfBirth
+                                ? new Date(profileData.dateOfBirth).toLocaleDateString()
+                                : 'Not provided'
+                              }
+                            </p>
+                          )}
+                        </Form.Group>
+                      </Col>
+                      <Col md={12} className="mb-3">
+                        <Form.Group>
+                          <Form.Label className="fw-bold">
+                            <FaMapMarkerAlt className="me-2 text-muted" />
+                            Address
+                          </Form.Label>
+                          {isEditingProfile ? (
+                            <Form.Control
+                              as="textarea"
+                              rows={2}
+                              value={profileData.address}
+                              onChange={(e) => handleProfileChange('address', e.target.value)}
+                            />
+                          ) : (
+                            <p className="mb-0">{profileData.address || 'Not provided'}</p>
+                          )}
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                  </Card.Body>
+                </Card>
+
+                {/* Educational Background */}
+                <Card className="border-0 shadow-sm mb-4">
+                  <Card.Header className="bg-white border-0">
+                    <h5 className="mb-0">
+                      <FaBook className="me-2 text-primary" />
+                      Educational Background
+                    </h5>
+                  </Card.Header>
+                  <Card.Body>
+                    <Row>
+                      <Col md={6} className="mb-3">
+                        <Form.Group>
+                          <Form.Label className="fw-bold">Education</Form.Label>
+                          {isEditingProfile ? (
+                            <Form.Control
+                              type="text"
+                              value={profileData.education}
+                              onChange={(e) => handleProfileChange('education', e.target.value)}
+                            />
+                          ) : (
+                            <p className="mb-0">{profileData.education || 'Not provided'}</p>
+                          )}
+                        </Form.Group>
+                      </Col>
+                      <Col md={6} className="mb-3">
+                        <Form.Group>
+                          <Form.Label className="fw-bold">Experience</Form.Label>
+                          {isEditingProfile ? (
+                            <Form.Control
+                              type="text"
+                              value={profileData.experience}
+                              onChange={(e) => handleProfileChange('experience', e.target.value)}
+                            />
+                          ) : (
+                            <p className="mb-0">{profileData.experience || 'Not provided'}</p>
+                          )}
+                        </Form.Group>
+                      </Col>
+                      <Col md={12} className="mb-3">
+                        <Form.Group>
+                          <Form.Label className="fw-bold">Interests</Form.Label>
+                          {isEditingProfile ? (
+                            <Form.Control
+                              as="textarea"
+                              rows={2}
+                              value={profileData.interests}
+                              onChange={(e) => handleProfileChange('interests', e.target.value)}
+                            />
+                          ) : (
+                            <p className="mb-0">{profileData.interests || 'Not provided'}</p>
+                          )}
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                  </Card.Body>
+                </Card>
+
+
+              </Col>
+            </Row>
+          </Tab>
         </Tabs>
       </Container>
 
@@ -564,7 +920,7 @@ const StudentDashboard = () => {
                   <Badge bg="primary">
                     Question {currentQuestion + 1} of {mockQuestions[selectedCourse.id].length}
                   </Badge>
-                  <ProgressBar 
+                  <ProgressBar
                     now={((currentQuestion + 1) / mockQuestions[selectedCourse.id].length) * 100}
                     style={{ width: '200px', height: '8px' }}
                   />
@@ -575,7 +931,7 @@ const StudentDashboard = () => {
                     <h5 className="mb-4">
                       {mockQuestions[selectedCourse.id][currentQuestion].question}
                     </h5>
-                    
+
                     <div className="d-grid gap-2">
                       {mockQuestions[selectedCourse.id][currentQuestion].options.map((option, index) => (
                         <Button
@@ -606,14 +962,14 @@ const StudentDashboard = () => {
               </h3>
               <h4>Your Score: {testScore.toFixed(1)}%</h4>
               <p className="text-muted">
-                {testScore >= 70 
+                {testScore >= 70
                   ? 'You have successfully completed the course and can now download your certificate!'
                   : 'You need at least 70% to pass. Please study more and try again.'
                 }
               </p>
               {testScore >= 70 && (
-                <Button 
-                  variant="success" 
+                <Button
+                  variant="success"
                   onClick={() => downloadCertificate(selectedCourse)}
                   className="mt-3"
                 >
@@ -626,8 +982,8 @@ const StudentDashboard = () => {
         </Modal.Body>
         <Modal.Footer>
           {!testCompleted && (
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               onClick={nextQuestion}
               disabled={!answers[mockQuestions[selectedCourse?.id]?.[currentQuestion]?.id]}
             >

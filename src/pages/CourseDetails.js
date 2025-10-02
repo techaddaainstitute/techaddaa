@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Badge, Modal, Form, Alert, Tab, Tabs } from 'react-bootstrap';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaStar, FaUsers, FaClock, FaPlay, FaDownload, FaCertificate, FaChalkboardTeacher, FaLaptop, FaBuilding } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
@@ -8,7 +8,8 @@ import CourseUsecase from '../lib/usecase/CourseUsecase';
 import { toast } from 'react-toastify';
 
 const CourseDetails = () => {
-  const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const id = searchParams.get('id');
   const navigate = useNavigate();
   const { user, mockCourses, purchaseCourse, loading } = useAuth();
   const [course, setCourse] = useState(null);

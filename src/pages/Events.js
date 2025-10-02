@@ -173,21 +173,23 @@ const Events = () => {
         transition={{ duration: 0.5, delay: index * 0.1 }}
         className="h-100"
       >
-        <Card className="h-100 border-0 shadow-sm event-card">
+        <Card className="h-100 border shadow-sm event-card" style={{ borderColor: '#e9ecef' }}>
           <div className="position-relative">
             <div 
               className="card-img-top"
               style={{
                 height: '200px',
-                background: `linear-gradient(135deg, #007bff, #0056b3)`,
+                background: `linear-gradient(135deg, #ffffff, #f8f9fa)`,
+                border: '1px solid #e9ecef',
+                borderBottom: '2px solid #007bff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
             >
-              <div className="text-center text-white p-3">
-                <h5 className="mb-2">{event.title}</h5>
-                <div className="d-flex align-items-center justify-content-center">
+              <div className="text-center text-dark p-3">
+                <h5 className="mb-2 text-primary">{event.title}</h5>
+                <div className="d-flex align-items-center justify-content-center text-secondary">
                   <FaCalendarAlt className="me-2" />
                   <span>{new Date(event.date).toLocaleDateString()}</span>
                 </div>
@@ -202,14 +204,14 @@ const Events = () => {
             </Badge>
             
             <Badge 
-              bg="dark" 
+              bg="primary" 
               className="position-absolute top-0 start-0 m-2"
             >
               {event.type}
             </Badge>
           </div>
           
-          <Card.Body className="d-flex flex-column">
+          <Card.Body className="d-flex flex-column" >
             <div className="mb-3">
               <Badge bg="light" text="dark" className="me-2">
                 {event.category}
@@ -297,13 +299,11 @@ const Events = () => {
     <div className="events-page">
       {/* Hero Section */}
       <section 
-        className="speaker-audience-bg text-white py-5"
+        className="py-5"
         style={{
-          backgroundImage: `url('/images/speaker-audience.svg')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          minHeight: '60vh'
+          background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+          minHeight: '60vh',
+          position: 'relative'
         }}
       >
         <Container className="position-relative">
@@ -313,22 +313,22 @@ const Events = () => {
             transition={{ duration: 0.8 }}
             className="text-center"
           >
-            <h1 className="display-4 fw-bold mb-3">Upcoming Events</h1>
-            <p className="lead mb-4">
+            <h1 className="display-4 fw-bold mb-3 text-dark">Upcoming Events</h1>
+            <p className="lead mb-4 text-secondary">
               Join our workshops, seminars, and networking events to enhance your skills
             </p>
             <div className="row justify-content-center">
               <div className="col-md-8">
                 <div className="d-flex justify-content-center gap-3 flex-wrap">
-                  <Badge bg="light" text="dark" className="px-3 py-2">
+                  <Badge bg="primary" className="px-3 py-2">
                     <FaCalendarAlt className="me-2" />
                     {events.filter(e => new Date(e.date) > new Date()).length} Upcoming Events
                   </Badge>
-                  <Badge bg="light" text="dark" className="px-3 py-2">
+                  <Badge bg="success" className="px-3 py-2">
                     <FaTicketAlt className="me-2" />
                     {events.filter(e => e.price === 0).length} Free Events
                   </Badge>
-                  <Badge bg="light" text="dark" className="px-3 py-2">
+                  <Badge bg="info" className="px-3 py-2">
                     <FaUsers className="me-2" />
                     {events.reduce((sum, e) => sum + e.registered, 0)} Total Registrations
                   </Badge>
@@ -353,7 +353,13 @@ const Events = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="gradient-secondary text-white py-5">
+      <section 
+        className="py-5"
+        style={{
+          background: 'linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%)',
+          borderTop: '1px solid #e9ecef'
+        }}
+      >
         <Container>
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -361,11 +367,11 @@ const Events = () => {
             transition={{ duration: 0.8 }}
             className="text-center"
           >
-            <h2 className="mb-3">Want to Host an Event?</h2>
-            <p className="lead mb-4">
+            <h2 className="mb-3 text-dark">Want to Host an Event?</h2>
+            <p className="lead mb-4 text-secondary">
               Partner with us to organize workshops, seminars, or competitions
             </p>
-            <Button variant="light" size="lg" className="btn-animated">
+            <Button variant="primary" size="lg" className="btn-animated">
               Contact Us
             </Button>
           </motion.div>
