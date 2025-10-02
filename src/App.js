@@ -13,10 +13,13 @@ import CertificateDownload from './pages/CertificateDownload';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import StudentDashboard from './pages/StudentDashboard';
-import AdminDashboard from './pages/AdminDashboard';
 import CourseDetails from './pages/CourseDetails';
+import Checkout from './pages/Checkout';
 import Chat from './pages/Chat';
 import Fees from './pages/Fees';
+import AdminLogin from './pages/admin/Login';
+import AdminDashboardNew from './pages/admin/AdminDashboard';
+import AdminChangePassword from './pages/admin/AdminChangePassword';
 
 // Context
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -46,49 +49,62 @@ function AppContent() {
           <Route path="/" element={<Home />} />
           <Route path="/courses" element={<Courses />} />
           <Route path="/course" element={<CourseDetails />} />
+          <Route
+            path="/checkout"
+            element={loading ? (
+              <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            ) : (user ? <Checkout /> : <Navigate to="/login" />)}
+          />
           <Route path="/events" element={<Events />} />
           <Route path="/certificate" element={<CertificateDownload />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route 
-            path="/dashboard" 
+          <Route
+            path="/dashboard"
             element={loading ? (
               <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
                 <div className="spinner-border text-primary" role="status">
                   <span className="visually-hidden">Loading...</span>
                 </div>
               </div>
-            ) : (user ? <StudentDashboard /> : <Navigate to="/login" />)} 
+            ) : (user ? <StudentDashboard /> : <Navigate to="/login" />)}
           />
-          <Route 
-            path="/chat" 
+          <Route
+            path="/chat"
             element={loading ? (
               <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
                 <div className="spinner-border text-primary" role="status">
                   <span className="visually-hidden">Loading...</span>
                 </div>
               </div>
-            ) : (user ? <Chat /> : <Navigate to="/login" />)} 
+            ) : (user ? <Chat /> : <Navigate to="/login" />)}
           />
-          <Route 
-            path="/admin" 
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboardNew />} />
+          <Route path="/admin/change-password" element={<AdminChangePassword />} />
+          <Route
+            path="/admin"
             element={loading ? (
               <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
                 <div className="spinner-border text-primary" role="status">
                   <span className="visually-hidden">Loading...</span>
                 </div>
               </div>
-            ) : (user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" />)} 
+            ) : (user?.role === 'admin' ? <AdminDashboard /> : <Navigate to="/" />)}
           />
-          <Route 
-            path="/fees" 
+          <Route
+            path="/fees"
             element={loading ? (
               <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
                 <div className="spinner-border text-primary" role="status">
                   <span className="visually-hidden">Loading...</span>
                 </div>
               </div>
-            ) : (user?.role === 'admin' ? <Fees /> : <Navigate to="/" />)} 
+            ) : (user?.role === 'admin' ? <Fees /> : <Navigate to="/" />)}
           />
         </Routes>
       </main>

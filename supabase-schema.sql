@@ -157,7 +157,73 @@ CREATE POLICY "Users can view own downloads" ON public.certificate_downloads
   FOR SELECT USING (auth.uid() = user_id);
 
 -- =============================================
--- 6. Functions and Triggers
+-- 6. Fees Table
+-- =============================================
+-- This table manages fee records for course enrollments with support for full payment and EMI options
+CREATE TABLE IF NOT EXISTS public.fees (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+  course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  enrollment_id UUID REFERENCES public.course_enrollments(id) ON DELETE SET NULL,
+  
+  -- Payment details
+  total_amount DECIMAL(10,2) NOT NULL,
+  installment_amount DECIMAL(10,2) NOT NULL,
+  installment_number INTEGER NOT NULL DEFAULT 1,
+  total_installments INTEGER NOT NULL DEFAULT 1,
+  
+  -- Payment status
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'overdue', 'cancelled')),
+  payment_type VARCHAR(20) NOT NULL DEFAULT 'full' CHECK (payment_type IN ('full', 'emi')),
+  
+  -- Due dates
+  due_date DATE NOT NULL,
+  paid_date TIMESTAMP WITH TIME ZONE,
+  
+  -- Course information (denormalized for easier queries)
+  course_name VARCHAR(255) NOT NULL,
+  course_mode VARCHAR(20) NOT NULL DEFAULT 'online' CHECK (course_mode IN ('online', 'offline')),
+  
+  -- Payment tracking
+  payment_method VARCHAR(50), -- 'card', 'upi', 'bank_transfer', etc.
+  transaction_id VARCHAR(100),
+  payment_gateway_response JSONB,
+  
+  -- Metadata
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  -- Constraints
+  CONSTRAINT unique_user_course_installment UNIQUE (user_id, course_id, installment_number)
+);
+
+-- Enable RLS on fees
+ALTER TABLE public.fees ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can view their own fees
+CREATE POLICY "Users can view own fees" ON public.fees
+  FOR SELECT USING (auth.uid() = user_id);
+
+-- Policy: Users can insert their own fees
+CREATE POLICY "Users can insert own fees" ON public.fees
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can update their own fees
+CREATE POLICY "Users can update own fees" ON public.fees
+  FOR UPDATE USING (auth.uid() = user_id);
+
+-- Policy: Admins can manage all fees
+CREATE POLICY "Admins can manage all fees" ON public.fees
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.user_profiles 
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- =============================================
+-- 7. Functions and Triggers
 -- =============================================
 
 -- Function to automatically create user profile when user signs up
@@ -199,6 +265,11 @@ CREATE TRIGGER handle_updated_at
 DROP TRIGGER IF EXISTS handle_updated_at ON public.course_enrollments;
 CREATE TRIGGER handle_updated_at
   BEFORE UPDATE ON public.course_enrollments
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+DROP TRIGGER IF EXISTS handle_updated_at ON public.fees;
+CREATE TRIGGER handle_updated_at
+  BEFORE UPDATE ON public.fees
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 -- Function to generate certificate number
@@ -287,6 +358,227 @@ CREATE INDEX IF NOT EXISTS idx_enrollments_status ON public.course_enrollments(s
 CREATE INDEX IF NOT EXISTS idx_certificates_user ON public.certificates(user_id);
 CREATE INDEX IF NOT EXISTS idx_certificates_number ON public.certificates(certificate_number);
 CREATE INDEX IF NOT EXISTS idx_certificate_downloads_user ON public.certificate_downloads(user_id);
+CREATE INDEX IF NOT EXISTS idx_fees_user_id ON public.fees(user_id);
+CREATE INDEX IF NOT EXISTS idx_fees_course_id ON public.fees(course_id);
+CREATE INDEX IF NOT EXISTS idx_fees_status ON public.fees(status);
+CREATE INDEX IF NOT EXISTS idx_fees_due_date ON public.fees(due_date);
+CREATE INDEX IF NOT EXISTS idx_fees_payment_type ON public.fees(payment_type);
+CREATE INDEX IF NOT EXISTS idx_fees_enrollment_id ON public.fees(enrollment_id);
+
+-- =============================================
+-- 6. Admin User Table
+-- =============================================
+-- This table stores dedicated admin users separate from regular user_profiles
+-- Provides enhanced security and admin-specific features
+
+CREATE TABLE IF NOT EXISTS public.admin_user (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  phone_number TEXT,
+  role TEXT DEFAULT 'admin' CHECK (role IN ('admin', 'super_admin')),
+  is_active BOOLEAN DEFAULT true,
+  last_login TIMESTAMP WITH TIME ZONE,
+  password_changed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  failed_login_attempts INTEGER DEFAULT 0,
+  locked_until TIMESTAMP WITH TIME ZONE,
+  created_by UUID REFERENCES public.admin_user(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS on admin_user
+ALTER TABLE public.admin_user ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for admin_user
+CREATE POLICY "Admin users can view admin records" ON public.admin_user
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.admin_user au 
+      WHERE au.email = auth.jwt() ->> 'email' 
+      AND au.is_active = true
+    )
+  );
+
+CREATE POLICY "Super admin can create admin users" ON public.admin_user
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.admin_user au 
+      WHERE au.email = auth.jwt() ->> 'email' 
+      AND au.role = 'super_admin' 
+      AND au.is_active = true
+    )
+  );
+
+CREATE POLICY "Admin users can update profiles" ON public.admin_user
+  FOR UPDATE USING (
+    email = auth.jwt() ->> 'email' OR
+    EXISTS (
+      SELECT 1 FROM public.admin_user au 
+      WHERE au.email = auth.jwt() ->> 'email' 
+      AND au.role = 'super_admin' 
+      AND au.is_active = true
+    )
+  );
+
+CREATE POLICY "Super admin can delete admin users" ON public.admin_user
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM public.admin_user au 
+      WHERE au.email = auth.jwt() ->> 'email' 
+      AND au.role = 'super_admin' 
+      AND au.is_active = true
+    )
+  );
+
+-- =============================================
+-- 7. Admin Session Management Table
+-- =============================================
+CREATE TABLE IF NOT EXISTS public.admin_sessions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  admin_user_id UUID REFERENCES public.admin_user(id) ON DELETE CASCADE,
+  session_token TEXT UNIQUE NOT NULL,
+  ip_address INET,
+  user_agent TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  last_activity TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable RLS for admin sessions
+ALTER TABLE public.admin_sessions ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Admin users can only see their own sessions
+CREATE POLICY "Admin users can view own sessions" ON public.admin_sessions
+  FOR SELECT USING (
+    admin_user_id IN (
+      SELECT id FROM public.admin_user 
+      WHERE email = auth.jwt() ->> 'email' 
+      AND is_active = true
+    )
+  );
+
+-- =============================================
+-- Admin User Functions
+-- =============================================
+
+-- Function to update admin_user updated_at timestamp
+CREATE OR REPLACE FUNCTION update_admin_user_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger for admin_user updated_at
+CREATE TRIGGER update_admin_user_updated_at_trigger
+  BEFORE UPDATE ON public.admin_user
+  FOR EACH ROW
+  EXECUTE FUNCTION update_admin_user_updated_at();
+
+-- Function to create admin user with hashed password
+CREATE OR REPLACE FUNCTION create_admin_user(
+  p_email TEXT,
+  p_password TEXT,
+  p_full_name TEXT,
+  p_phone_number TEXT DEFAULT NULL,
+  p_role TEXT DEFAULT 'admin'
+)
+RETURNS UUID AS $$
+DECLARE
+  v_admin_id UUID;
+  v_password_hash TEXT;
+BEGIN
+  -- Hash the password using crypt
+  v_password_hash := crypt(p_password, gen_salt('bf'));
+  
+  -- Insert the admin user
+  INSERT INTO public.admin_user (
+    email, password_hash, full_name, phone_number, role
+  ) VALUES (
+    p_email, v_password_hash, p_full_name, p_phone_number, p_role
+  ) RETURNING id INTO v_admin_id;
+  
+  RETURN v_admin_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to verify admin password
+CREATE OR REPLACE FUNCTION verify_admin_password(
+  p_email TEXT,
+  p_password TEXT
+)
+RETURNS TABLE(
+  admin_id UUID,
+  email TEXT,
+  full_name TEXT,
+  phone_number TEXT,
+  role TEXT,
+  is_active BOOLEAN,
+  last_login TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    au.id,
+    au.email,
+    au.full_name,
+    au.phone_number,
+    au.role,
+    au.is_active,
+    au.last_login
+  FROM public.admin_user au
+  WHERE au.email = p_email 
+    AND au.password_hash = crypt(p_password, au.password_hash)
+    AND au.is_active = true
+    AND (au.locked_until IS NULL OR au.locked_until < NOW());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to update last login
+CREATE OR REPLACE FUNCTION update_admin_last_login(p_admin_id UUID)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE public.admin_user 
+  SET last_login = NOW(),
+      failed_login_attempts = 0,
+      locked_until = NULL
+  WHERE id = p_admin_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to handle failed login attempts
+CREATE OR REPLACE FUNCTION handle_admin_failed_login(p_email TEXT)
+RETURNS VOID AS $$
+DECLARE
+  v_attempts INTEGER;
+BEGIN
+  UPDATE public.admin_user 
+  SET failed_login_attempts = failed_login_attempts + 1
+  WHERE email = p_email
+  RETURNING failed_login_attempts INTO v_attempts;
+  
+  -- Lock account after 5 failed attempts for 30 minutes
+  IF v_attempts >= 5 THEN
+    UPDATE public.admin_user 
+    SET locked_until = NOW() + INTERVAL '30 minutes'
+    WHERE email = p_email;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- =============================================
+-- Additional Indexes for Admin Tables
+-- =============================================
+CREATE INDEX IF NOT EXISTS idx_admin_user_email ON public.admin_user(email);
+CREATE INDEX IF NOT EXISTS idx_admin_user_active ON public.admin_user(is_active);
+CREATE INDEX IF NOT EXISTS idx_admin_user_role ON public.admin_user(role);
+CREATE INDEX IF NOT EXISTS idx_admin_user_last_login ON public.admin_user(last_login);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON public.admin_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_admin_user ON public.admin_sessions(admin_user_id);
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON public.admin_sessions(expires_at);
 
 -- =============================================
 -- Instructions for Setup:

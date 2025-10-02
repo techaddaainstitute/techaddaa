@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Button, Badge, Modal, Form, Alert, Tab, Tabs } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Badge, Tab, Tabs } from 'react-bootstrap';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaStar, FaUsers, FaClock, FaPlay, FaDownload, FaCertificate, FaChalkboardTeacher, FaLaptop, FaBuilding } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import CourseUsecase from '../lib/usecase/CourseUsecase';
-import FeesUsecase from '../lib/usecase/FeesUsecase';
-import { toast } from 'react-toastify';
 
 const CourseDetails = () => {
   const [searchParams] = useSearchParams();
@@ -15,19 +13,7 @@ const CourseDetails = () => {
   const { user, mockCourses, purchaseCourse, loading } = useAuth();
   const [course, setCourse] = useState(null);
   const [courseLoading, setCourseLoading] = useState(true);
-  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-  const [selectedMode, setSelectedMode] = useState('online');
-  const [paymentType, setPaymentType] = useState('full');
-  const [emiMonths, setEmiMonths] = useState(6);
 
-  // Fetch course data from database
-  // Helper function to convert integer course IDs to UUIDs
-  const courseIdToUUID = (courseId) => {
-
-
-    // For unmapped IDs, convert to hexadecimal and pad to 4 characters
-    return courseUUIDMap[courseId] || `550e8400-e29b-41d4-a716-446655440${courseId.toString(16).padStart(3, '0')}`;
-  };
 
   useEffect(() => {
     const fetchCourse = async () => {
@@ -154,47 +140,13 @@ const CourseDetails = () => {
     }
   ];
 
-  const handlePurchase = async () => {
+  const handleEnrollNow = () => {
     if (!user) {
-      toast.info('Please login to purchase the course');
       navigate('/login');
       return;
     }
-
-    try {
-      // First, enroll in the course
-      const enrollmentResult = await purchaseCourse(course.id, selectedMode);
-      
-      if (enrollmentResult.success) {
-        // Create fees entries based on payment type
-        const courseAmount = selectedMode === 'online' ? course.onlinePrice : course.offlinePrice;
-        
-        const feesResult = await FeesUsecase.createEnrollmentFeesUsecase(
-          user.id,
-          course.id,
-          course,
-          paymentType,
-          courseAmount,
-          selectedMode,
-          emiMonths
-        );
-
-        if (feesResult.success) {
-          setShowPurchaseModal(false);
-          // Success message is handled in FeesUsecase
-        } else {
-          toast.error(feesResult.error || 'Failed to create fees entries');
-        }
-      } else {
-        toast.error(enrollmentResult.error || 'Failed to enroll in course');
-      }
-    } catch (error) {
-      console.error('Error during purchase:', error);
-      toast.error('An unexpected error occurred during enrollment');
-    }
+    navigate(`/checkout?courseId=${course.id}`);
   };
-
-  const price = selectedMode === 'online' ? course.onlinePrice : course.offlinePrice;
 
   return (
     <div className="course-details-page">
@@ -248,9 +200,9 @@ const CourseDetails = () => {
                       variant="primary"
                       size="lg"
                       className="btn-animated px-4"
-                      onClick={() => setShowPurchaseModal(true)}
+                      onClick={handleEnrollNow}
                     >
-                      Enroll Now - ₹{course.onlinePrice.toLocaleString()}
+                      Enroll Now - ₹{course.onlinePrice.toLocaleString()} (incl. GST)
                     </Button>
                   )}
                   <Button
@@ -477,14 +429,20 @@ const CourseDetails = () => {
                           <FaLaptop className="me-2 text-primary" />
                           Online Mode:
                         </span>
-                        <span className="fw-bold text-primary">₹{course.onlinePrice.toLocaleString()}</span>
+                        <div className="text-end">
+                          <div className="fw-bold text-primary">₹{course.onlinePrice.toLocaleString()}</div>
+                          <small className="text-muted">(incl. 18% GST)</small>
+                        </div>
                       </div>
                       <div className="d-flex justify-content-between">
                         <span className="d-flex align-items-center">
                           <FaBuilding className="me-2 text-success" />
                           Offline Mode:
                         </span>
-                        <span className="fw-bold text-success">₹{course.offlinePrice.toLocaleString()}</span>
+                        <div className="text-end">
+                          <div className="fw-bold text-success">₹{course.offlinePrice.toLocaleString()}</div>
+                          <small className="text-muted">(incl. 18% GST)</small>
+                        </div>
                       </div>
                     </div>
 
@@ -492,7 +450,7 @@ const CourseDetails = () => {
                       <Button
                         variant="primary"
                         className="btn-animated w-100 py-3"
-                        onClick={() => setShowPurchaseModal(true)}
+                        onClick={handleEnrollNow}
                       >
                         Enroll Now
                       </Button>
@@ -529,152 +487,7 @@ const CourseDetails = () => {
         </Container>
       </section>
 
-      {/* Purchase Modal */}
-      <Modal show={showPurchaseModal} onHide={() => setShowPurchaseModal(false)} centered>
-        <Modal.Header closeButton>
-          <Modal.Title>Enroll in {course.title}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form>
-            <Form.Group className="mb-3">
-              <Form.Label className="fw-semibold">Select Learning Mode</Form.Label>
-              <div className="d-grid gap-2">
-                <Form.Check
-                  type="radio"
-                  id="online"
-                  name="mode"
-                  value="online"
-                  checked={selectedMode === 'online'}
-                  onChange={(e) => setSelectedMode(e.target.value)}
-                  label={
-                    <div className="d-flex justify-content-between align-items-center w-100">
-                      <div>
-                        <div className="fw-semibold">Online Mode</div>
-                        <small className="text-muted">Learn from anywhere, anytime</small>
-                      </div>
-                      <span className="fw-bold text-primary">₹{course.onlinePrice.toLocaleString()}</span>
-                    </div>
-                  }
-                  className="border rounded p-3"
-                />
-                <Form.Check
-                  type="radio"
-                  id="offline"
-                  name="mode"
-                  value="offline"
-                  checked={selectedMode === 'offline'}
-                  onChange={(e) => setSelectedMode(e.target.value)}
-                  label={
-                    <div className="d-flex justify-content-between align-items-center w-100">
-                      <div>
-                        <div className="fw-semibold">Offline Mode</div>
-                        <small className="text-muted">Classroom learning with direct interaction</small>
-                      </div>
-                      <span className="fw-bold text-success">₹{course.offlinePrice.toLocaleString()}</span>
-                    </div>
-                  }
-                  className="border rounded p-3"
-                />
-              </div>
-            </Form.Group>
 
-            {/* Payment Options */}
-            <Form.Group className="mb-3">
-              <Form.Label className="fw-semibold">Payment Options</Form.Label>
-              <div className="d-grid gap-2">
-                <Form.Check
-                  type="radio"
-                  id="fullpay"
-                  name="payment"
-                  value="full"
-                  checked={paymentType === 'full'}
-                  onChange={(e) => setPaymentType(e.target.value)}
-                  label={
-                    <div className="d-flex justify-content-between align-items-center w-100">
-                      <div>
-                        <div className="fw-semibold">Full Payment</div>
-                        <small className="text-muted">Pay the complete amount now</small>
-                      </div>
-                      <span className="fw-bold text-success">
-                        ₹{(selectedMode === 'online' ? course.onlinePrice : course.offlinePrice).toLocaleString()}
-                      </span>
-                    </div>
-                  }
-                  className="border rounded p-3"
-                />
-                <Form.Check
-                  type="radio"
-                  id="emi"
-                  name="payment"
-                  value="emi"
-                  checked={paymentType === 'emi'}
-                  onChange={(e) => setPaymentType(e.target.value)}
-                  label={
-                    <div className="d-flex justify-content-between align-items-center w-100">
-                      <div>
-                        <div className="fw-semibold">EMI Payment</div>
-                        <small className="text-muted">Pay in monthly installments</small>
-                      </div>
-                      <span className="fw-bold text-primary">
-                        ₹{Math.ceil((selectedMode === 'online' ? course.onlinePrice : course.offlinePrice) / emiMonths).toLocaleString()}/month
-                      </span>
-                    </div>
-                  }
-                  className="border rounded p-3"
-                />
-              </div>
-            </Form.Group>
-
-            {/* EMI Duration Selection */}
-            {paymentType === 'emi' && (
-              <Form.Group className="mb-3">
-                <Form.Label className="fw-semibold">EMI Duration</Form.Label>
-                <Form.Select 
-                  value={emiMonths} 
-                  onChange={(e) => setEmiMonths(parseInt(e.target.value))}
-                  className="form-select"
-                >
-                  <option value={3}>3 Months - ₹{Math.ceil((selectedMode === 'online' ? course.onlinePrice : course.offlinePrice) / 3).toLocaleString()}/month</option>
-                  <option value={6}>6 Months - ₹{Math.ceil((selectedMode === 'online' ? course.onlinePrice : course.offlinePrice) / 6).toLocaleString()}/month</option>
-                  <option value={12}>12 Months - ₹{Math.ceil((selectedMode === 'online' ? course.onlinePrice : course.offlinePrice) / 12).toLocaleString()}/month</option>
-                </Form.Select>
-              </Form.Group>
-            )}
-
-            <Alert variant="info">
-              <small>
-                <strong>Note:</strong> You can switch between online and offline modes during the course.
-                Offline mode includes additional benefits like lab access and face-to-face mentoring.
-                {paymentType === 'emi' && (
-                  <><br /><strong>EMI:</strong> First installment will be charged immediately upon enrollment.</>
-                )}
-              </small>
-            </Alert>
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowPurchaseModal(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handlePurchase}
-            disabled={loading}
-            className="btn-animated"
-          >
-            {loading ? (
-              <>
-                <div className="spinner-border spinner-border-sm me-2" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
-                Processing...
-              </>
-            ) : (
-              `Enroll for ₹${price.toLocaleString()}`
-            )}
-          </Button>
-        </Modal.Footer>
-      </Modal>
     </div>
   );
 };

@@ -9,7 +9,7 @@ import { toast } from 'react-toastify';
 const Login = () => {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState(1); 
+  const [step, setStep] = useState(1);
   const [showOtp, setShowOtp] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [errors, setErrors] = useState({});
@@ -420,16 +420,20 @@ const Login = () => {
                       )
                     }
 
-                    {/* Demo Credentials */}
-                    <div className="mt-4 p-3 rounded" style={{ backgroundColor: '#f8f9fa' }}>
-                      <h6 className="text-dark mb-2">Demo Credentials:</h6>
-                      <div className="text-muted small">
-                        <div>Student: <strong>9876543210</strong></div>
-                        <div>Admin: <strong>9876543211</strong></div>
-                        <div className="mt-1">
-                          <em>OTP will be displayed in the toast notification</em>
-                        </div>
-                      </div>
+
+
+                    {/* Admin Login Button */}
+                    <div className="text-center mt-3">
+                      <Button
+                        variant="outline-secondary"
+                        size="sm"
+                        onClick={() => navigate('/admin/login')}
+                        className="d-flex align-items-center justify-content-center mx-auto"
+                        style={{ maxWidth: '200px' }}
+                      >
+                        <FaShieldAlt className="me-2" />
+                        Admin Login
+                      </Button>
                     </div>
 
                     <div className="text-center mt-4">
