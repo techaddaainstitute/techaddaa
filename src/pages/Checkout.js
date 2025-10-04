@@ -18,6 +18,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import CourseUsecase from '../lib/usecase/CourseUsecase';
 import FeesUsecase from '../lib/usecase/FeesUsecase';
+import PaymentDatasource from '../lib/datasource/PaymentDatasource';
 import { toast } from 'react-toastify';
 
 const Checkout = () => {
@@ -72,36 +73,37 @@ const Checkout = () => {
 
     setIsProcessing(true);
     try {
-      const enrollmentResult = await purchaseCourse(course.id, selectedMode);
+      // Course price already includes GST
+      const totalCourseAmount = selectedMode === 'online' ? course.onlinePrice : course.offlinePrice;
       
-      if (enrollmentResult.success) {
-        // Course price already includes GST
-        const totalCourseAmount = selectedMode === 'online' ? course.onlinePrice : course.offlinePrice;
-        
-        const feesResult = await FeesUsecase.createEnrollmentFeesUsecase(
-          user.id,
-          course.id,
-          course,
-          paymentType,
-          totalCourseAmount,
-          selectedMode,
-          emiMonths
-        );
+      // Generate Instamojo payment link before enrollment
+      const paymentData = {
+        amount: totalCourseAmount,
+        purpose: `${course.title} - ${selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1)} Mode`,
+        buyer_name: user.name || user.email,
+        email: user.email,
+        phone: user.phone || '',
+        user_id: user.id,
+        course_id: course.id,
+        payment_type: paymentType
+      };
 
-        if (feesResult.success) {
-          setCurrentStep(3);
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 3000);
-        } else {
-          toast.error(feesResult.error || 'Failed to create fees entries');
-        }
-      } else {
-        toast.error(enrollmentResult.error || 'Failed to enroll in course');
+      const paymentResult = await PaymentDatasource.generateInstamojoPayment(paymentData);
+      
+      if (!paymentResult.success) {
+        toast.error(paymentResult.error || 'Failed to generate payment link');
+        return;
       }
+
+      // Redirect to Instamojo payment page
+      window.location.href = paymentResult.data.payment_url;
+      
+      // Note: The enrollment will happen after successful payment verification
+      // This should be handled in a payment success callback/webhook
+      
     } catch (error) {
-      console.error('Error during purchase:', error);
-      toast.error('An unexpected error occurred during enrollment');
+      console.error('Error during payment generation:', error);
+      toast.error('An unexpected error occurred during payment processing');
     } finally {
       setIsProcessing(false);
     }

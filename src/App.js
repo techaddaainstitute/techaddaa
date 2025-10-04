@@ -15,6 +15,7 @@ import Register from './pages/Register';
 import StudentDashboard from './pages/StudentDashboard';
 import CourseDetails from './pages/CourseDetails';
 import Checkout from './pages/Checkout';
+import PaymentSuccess from './pages/PaymentSuccess';
 import Chat from './pages/Chat';
 import Fees from './pages/Fees';
 import Contact from './pages/Contact';
@@ -64,6 +65,7 @@ function AppContent() {
               </div>
             ) : (user ? <Checkout /> : <Navigate to="/login" />)}
           />
+          <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/events" element={<Events />} />
           <Route path="/certificate" element={<CertificateDownload />} />
           <Route path="/contact" element={<Contact />} />
