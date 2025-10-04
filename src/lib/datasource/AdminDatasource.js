@@ -797,6 +797,175 @@ export class AdminDatasource {
     }
   }
 
+  /**
+   * Add a new student with course enrollment
+   */
+  static async addStudentWithEnrollment(studentData) {
+    try {
+      // Generate a temporary password for the student
+      const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
+      
+      // First, create the auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: studentData.email,
+        password: tempPassword,
+        email_confirm: true
+      });
+
+      if (authError) {
+        throw new Error(`Auth user creation failed: ${authError.message}`);
+      }
+
+      // Then, create the user profile
+      const { data: userData, error: userError } = await supabase
+        .from('user_profiles')
+        .insert({
+          id: authData.user.id,
+          full_name: studentData.full_name,
+          email: studentData.email,
+          phone_number: studentData.phone,
+          role: 'student',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (userError) {
+        // If profile creation fails, we should delete the auth user
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        throw new Error(`Profile creation failed: ${userError.message}`);
+      }
+
+      // If course_id is provided, create enrollment
+      if (studentData.course_id) {
+        const { error: enrollmentError } = await supabase
+          .from('course_enrollments')
+          .insert({
+            user_id: userData.id,
+            course_id: studentData.course_id,
+            status: 'active',
+            progress: 0,
+            enrollment_date: new Date().toISOString(),
+            enrollment_mode: studentData.enrollment_mode || 'online'
+          });
+
+        if (enrollmentError) {
+          // If enrollment fails, rollback user creation
+          await supabase.auth.admin.deleteUser(authData.user.id);
+          console.error('❌ Enrollment creation failed:', enrollmentError);
+          throw new Error(`Student created but enrollment failed: ${enrollmentError.message}`);
+        }
+      }
+
+      return { 
+        success: true, 
+        student: userData,
+        tempPassword: tempPassword // Return temp password for admin to share with student
+      };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource add student error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Add a new course
+   */
+  static async addCourse(courseData) {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .insert({
+          title: courseData.title,
+          description: courseData.description || '',
+          category: courseData.category || 'General',
+          level: courseData.level || 'Beginner',
+          duration: courseData.duration || '0',
+          price: parseFloat(courseData.price) || 0,
+          is_active: courseData.is_active !== false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true, course: data };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource add course error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update student information
+   */
+  static async updateStudent(studentId, studentData) {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .update({
+          full_name: studentData.full_name,
+          email: studentData.email,
+          phone_number: studentData.phone,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', studentId)
+        .eq('role', 'student')
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true, student: data };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource update student error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update course information
+   */
+  static async updateCourse(courseId, courseData) {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .update({
+          title: courseData.title,
+          description: courseData.description || '',
+          category: courseData.category || 'General',
+          level: courseData.level || 'Beginner',
+          duration: courseData.duration || '0',
+          price: parseFloat(courseData.price) || 0,
+          is_active: courseData.is_active !== false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', courseId)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true, course: data };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource update course error:', error);
+      throw error;
+    }
+  }
+
 }
 
 export default AdminDatasource;

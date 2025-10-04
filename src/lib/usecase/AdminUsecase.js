@@ -317,6 +317,171 @@ export class AdminUsecase {
     }
   }
 
+  /**
+   * Add student with enrollment usecase
+   */
+  static async addStudentWithEnrollment(studentData) {
+    try {
+      // Validate required fields
+      if (!studentData.full_name || !studentData.email || !studentData.course_id) {
+        throw new Error('Full name, email, and course are required');
+      }
+
+      if (!AdminDatasource.validateEmail(studentData.email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      const result = await AdminDatasource.addStudentWithEnrollment(studentData);
+      
+      if (result.success) {
+        toast.success(`Student added successfully! Temporary password: ${result.tempPassword}`);
+        
+        return {
+          success: true,
+          student: result.student,
+          tempPassword: result.tempPassword,
+          message: `Student added successfully! Temporary password: ${result.tempPassword}`
+        };
+      } else {
+        throw new Error(result.error || 'Failed to add student');
+      }
+
+    } catch (error) {
+      console.error('Add student with enrollment usecase error:', error);
+      toast.error(error.message || 'Failed to add student');
+      
+      return {
+        success: false,
+        error: error.message || 'Failed to add student'
+      };
+    }
+  }
+
+  /**
+   * Add course usecase
+   */
+  static async addCourse(courseData) {
+    try {
+      // Validate required fields
+      if (!courseData.title || !courseData.price) {
+        throw new Error('Course title and price are required');
+      }
+
+      if (isNaN(courseData.price) || courseData.price <= 0) {
+        throw new Error('Please enter a valid price');
+      }
+
+      const result = await AdminDatasource.addCourse(courseData);
+      
+      if (result.success) {
+        toast.success('Course added successfully!');
+        
+        return {
+          success: true,
+          course: result.course,
+          message: 'Course added successfully'
+        };
+      } else {
+        throw new Error(result.error || 'Failed to add course');
+      }
+
+    } catch (error) {
+      console.error('Add course usecase error:', error);
+      toast.error(error.message || 'Failed to add course');
+      
+      return {
+        success: false,
+        error: error.message || 'Failed to add course'
+      };
+    }
+  }
+
+  /**
+   * Update student usecase
+   */
+  static async updateStudent(studentId, studentData) {
+    try {
+      if (!studentId) {
+        throw new Error('Student ID is required');
+      }
+
+      // Validate required fields
+      if (!studentData.full_name || !studentData.email) {
+        throw new Error('Full name and email are required');
+      }
+
+      if (!AdminDatasource.validateEmail(studentData.email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      const result = await AdminDatasource.updateStudent(studentId, studentData);
+      
+      if (result.success) {
+        toast.success('Student updated successfully!');
+        
+        return {
+          success: true,
+          student: result.student,
+          message: 'Student updated successfully'
+        };
+      } else {
+        throw new Error(result.error || 'Failed to update student');
+      }
+
+    } catch (error) {
+      console.error('Update student usecase error:', error);
+      toast.error(error.message || 'Failed to update student');
+      
+      return {
+        success: false,
+        error: error.message || 'Failed to update student'
+      };
+    }
+  }
+
+  /**
+   * Update course usecase
+   */
+  static async updateCourse(courseId, courseData) {
+    try {
+      if (!courseId) {
+        throw new Error('Course ID is required');
+      }
+
+      // Validate required fields
+      if (!courseData.title || !courseData.price) {
+        throw new Error('Course title and price are required');
+      }
+
+      if (isNaN(courseData.price) || courseData.price <= 0) {
+        throw new Error('Please enter a valid price');
+      }
+
+      const result = await AdminDatasource.updateCourse(courseId, courseData);
+      
+      if (result.success) {
+        toast.success('Course updated successfully!');
+        
+        return {
+          success: true,
+          course: result.course,
+          message: 'Course updated successfully'
+        };
+      } else {
+        throw new Error(result.error || 'Failed to update course');
+      }
+
+    } catch (error) {
+      console.error('Update course usecase error:', error);
+      toast.error(error.message || 'Failed to update course');
+      
+      return {
+        success: false,
+        error: error.message || 'Failed to update course'
+      };
+    }
+  }
+
   // ==================== UTILITY METHODS ====================
 
   /**

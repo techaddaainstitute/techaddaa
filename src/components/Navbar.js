@@ -143,6 +143,22 @@ const Navbar = () => {
             >
               Certificate
             </Nav.Link>
+            <Nav.Link
+              as={Link}
+              to="/contact"
+              className="mx-3 fw-medium"
+              onClick={handleNavClick}
+              style={{
+                color: '#374151',
+                textDecoration: 'none',
+                fontSize: '1rem',
+                transition: 'color 0.2s ease'
+              }}
+              onMouseEnter={(e) => e.target.style.color = '#f97316'}
+              onMouseLeave={(e) => e.target.style.color = '#374151'}
+            >
+              Contact Us
+            </Nav.Link>
           </Nav>
 
           <Nav className="ms-auto align-items-center">

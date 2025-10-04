@@ -17,12 +17,17 @@ import CourseDetails from './pages/CourseDetails';
 import Checkout from './pages/Checkout';
 import Chat from './pages/Chat';
 import Fees from './pages/Fees';
+import Contact from './pages/Contact';
+import TermsAndConditions from './pages/TermsAndConditions';
+import RefundPolicy from './pages/RefundPolicy';
 import AdminLogin from './pages/admin/Login';
 import AdminDashboardNew from './pages/admin/AdminDashboard';
 import AdminChangePassword from './pages/admin/AdminChangePassword';
+import OTPVerification from './components/OTPVerification';
 
 // Context
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { FirebaseProvider } from './context/FirebaseContext';
 
 // Styles
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -61,6 +66,10 @@ function AppContent() {
           />
           <Route path="/events" element={<Events />} />
           <Route path="/certificate" element={<CertificateDownload />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+          <Route path="/refund-policy" element={<RefundPolicy />} />
+          <Route path="/otp-verification" element={<OTPVerification />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route
@@ -127,11 +136,13 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </AuthProvider>
+    <FirebaseProvider>
+      <AuthProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </AuthProvider>
+    </FirebaseProvider>
   );
 }
 

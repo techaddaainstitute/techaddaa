@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Table, Button, Badge, Nav, Tab } from 'react-bootstrap';
+import { Container, Row, Col, Card, Table, Button, Badge, Nav, Tab, Modal, Form, Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { FaSignOutAlt, FaKey, FaUser, FaRupeeSign, FaClock, FaCreditCard, FaMoneyBillWave } from 'react-icons/fa';
+import { FaSignOutAlt, FaKey, FaUser, FaRupeeSign, FaClock, FaCreditCard, FaMoneyBillWave, FaPlus, FaEdit } from 'react-icons/fa';
 import AdminUsecase from '../../lib/usecase/AdminUsecase';
 
 const AdminDashboard = () => {
@@ -19,6 +19,35 @@ const AdminDashboard = () => {
   const [enrollments, setEnrollments] = useState([]);
   const [financialStats, setFinancialStats] = useState({});
   const navigate = useNavigate();
+
+  // Modal states
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false);
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
+  const [showEditCourseModal, setShowEditCourseModal] = useState(false);
+  
+  // Form data states
+  const [studentFormData, setStudentFormData] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    course_id: '',
+    enrollment_mode: 'online'
+  });
+  
+  const [courseFormData, setCourseFormData] = useState({
+    title: '',
+    description: '',
+    price: '',
+    duration: '',
+    category: '',
+    is_active: true
+  });
+  
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editingCourse, setEditingCourse] = useState(null);
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
 
   useEffect(() => {
     const initializeAdmin = async () => {
@@ -93,6 +122,166 @@ const AdminDashboard = () => {
 
   const handleChangePassword = () => {
     navigate('/admin/change-password');
+  };
+
+  // Modal handlers
+  const resetForms = () => {
+    setStudentFormData({
+      full_name: '',
+      email: '',
+      phone: '',
+      course_id: '',
+      enrollment_mode: 'online'
+    });
+    setCourseFormData({
+      title: '',
+      description: '',
+      price: '',
+      duration: '',
+      category: '',
+      is_active: true
+    });
+    setFormError('');
+    setFormSuccess('');
+  };
+
+  const handleAddStudent = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+    
+    try {
+      // Validate required fields
+      if (!studentFormData.full_name || !studentFormData.email || !studentFormData.course_id) {
+        setFormError('Please fill in all required fields');
+        return;
+      }
+
+      // Add student logic here - you'll need to implement this in AdminUsecase
+      const result = await AdminUsecase.addStudentWithEnrollment(studentFormData);
+      
+      if (result.success) {
+        setFormSuccess('Student added and enrolled successfully!');
+        await fetchDashboardData(); // Refresh data
+        setTimeout(() => {
+          setShowAddStudentModal(false);
+          resetForms();
+        }, 1500);
+      } else {
+        setFormError(result.error || 'Failed to add student');
+      }
+    } catch (error) {
+      console.error('Error adding student:', error);
+      setFormError('An error occurred while adding the student');
+    }
+  };
+
+  const handleAddCourse = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+    
+    try {
+      // Validate required fields
+      if (!courseFormData.title || !courseFormData.price) {
+        setFormError('Please fill in all required fields');
+        return;
+      }
+
+      // Add course logic here - you'll need to implement this in AdminUsecase
+      const result = await AdminUsecase.addCourse(courseFormData);
+      
+      if (result.success) {
+        setFormSuccess('Course added successfully!');
+        await fetchDashboardData(); // Refresh data
+        setTimeout(() => {
+          setShowAddCourseModal(false);
+          resetForms();
+        }, 1500);
+      } else {
+        setFormError(result.error || 'Failed to add course');
+      }
+    } catch (error) {
+      console.error('Error adding course:', error);
+      setFormError('An error occurred while adding the course');
+    }
+  };
+
+  const handleEditStudent = (student) => {
+    setEditingStudent(student);
+    setStudentFormData({
+      full_name: student.full_name || student.name || '',
+      email: student.email || '',
+      phone: student.phone || '',
+      course_id: student.course_id || '',
+      enrollment_mode: student.enrollment_mode || 'online'
+    });
+    setShowEditStudentModal(true);
+  };
+
+  const handleUpdateStudent = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+    
+    try {
+      // Update student logic here - you'll need to implement this in AdminUsecase
+      const result = await AdminUsecase.updateStudent(editingStudent.id, studentFormData);
+      
+      if (result.success) {
+        setFormSuccess('Student updated successfully!');
+        await fetchDashboardData(); // Refresh data
+        setTimeout(() => {
+          setShowEditStudentModal(false);
+          resetForms();
+          setEditingStudent(null);
+        }, 1500);
+      } else {
+        setFormError(result.error || 'Failed to update student');
+      }
+    } catch (error) {
+      console.error('Error updating student:', error);
+      setFormError('An error occurred while updating the student');
+    }
+  };
+
+  const handleEditCourse = (course) => {
+    setEditingCourse(course);
+    setCourseFormData({
+      title: course.title || '',
+      description: course.description || '',
+      price: course.price || '',
+      duration: course.duration || '',
+      category: course.category || '',
+      is_active: course.is_active !== false
+    });
+    setShowEditCourseModal(true);
+  };
+
+  const handleUpdateCourse = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+    
+    try {
+      // Update course logic here - you'll need to implement this in AdminUsecase
+      const result = await AdminUsecase.updateCourse(editingCourse.id, courseFormData);
+      
+      if (result.success) {
+        setFormSuccess('Course updated successfully!');
+        await fetchDashboardData(); // Refresh data
+        setTimeout(() => {
+          setShowEditCourseModal(false);
+          resetForms();
+          setEditingCourse(null);
+        }, 1500);
+      } else {
+        setFormError(result.error || 'Failed to update course');
+      }
+    } catch (error) {
+      console.error('Error updating course:', error);
+      setFormError('An error occurred while updating the course');
+    }
   };
 
   if (loading) {
@@ -238,7 +427,14 @@ const AdminDashboard = () => {
             <Card>
               <Card.Header className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">Students Management</h5>
-                <Button variant="primary" size="sm">Add Student</Button>
+                <Button 
+                  variant="primary" 
+                  size="sm"
+                  onClick={() => setShowAddStudentModal(true)}
+                >
+                  <FaPlus className="me-1" />
+                  Add Student
+                </Button>
               </Card.Header>
               <Card.Body>
                 <Table responsive hover>
@@ -268,7 +464,12 @@ const AdminDashboard = () => {
                           <Button variant="outline-primary" size="sm" className="me-2">
                             View
                           </Button>
-                          <Button variant="outline-secondary" size="sm">
+                          <Button 
+                            variant="outline-secondary" 
+                            size="sm"
+                            onClick={() => handleEditStudent(student)}
+                          >
+                            <FaEdit className="me-1" />
                             Edit
                           </Button>
                         </td>
@@ -291,7 +492,14 @@ const AdminDashboard = () => {
             <Card>
               <Card.Header className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">Courses Management</h5>
-                <Button variant="primary" size="sm">Add Course</Button>
+                <Button 
+                  variant="primary" 
+                  size="sm"
+                  onClick={() => setShowAddCourseModal(true)}
+                >
+                  <FaPlus className="me-1" />
+                  Add Course
+                </Button>
               </Card.Header>
               <Card.Body>
                 <Table responsive hover>
@@ -321,7 +529,12 @@ const AdminDashboard = () => {
                           <Button variant="outline-primary" size="sm" className="me-2">
                             View
                           </Button>
-                          <Button variant="outline-secondary" size="sm">
+                          <Button 
+                            variant="outline-secondary" 
+                            size="sm"
+                            onClick={() => handleEditCourse(course)}
+                          >
+                            <FaEdit className="me-1" />
                             Edit
                           </Button>
                         </td>
@@ -577,6 +790,361 @@ const AdminDashboard = () => {
           </Tab.Pane>
         </Tab.Content>
       </Tab.Container>
+
+      {/* Add Student Modal */}
+    <Modal show={showAddStudentModal} onHide={() => setShowAddStudentModal(false)} size="lg">
+      <Modal.Header closeButton>
+        <Modal.Title>Add New Student</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        {formError && <Alert variant="danger">{formError}</Alert>}
+        {formSuccess && <Alert variant="success">{formSuccess}</Alert>}
+        <Form>
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Full Name *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={studentFormData.full_name}
+                  onChange={(e) => setStudentFormData({...studentFormData, full_name: e.target.value})}
+                  placeholder="Enter full name"
+                  required
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Email *</Form.Label>
+                <Form.Control
+                  type="email"
+                  value={studentFormData.email}
+                  onChange={(e) => setStudentFormData({...studentFormData, email: e.target.value})}
+                  placeholder="Enter email address"
+                  required
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Phone Number</Form.Label>
+                <Form.Control
+                  type="tel"
+                  value={studentFormData.phone}
+                  onChange={(e) => setStudentFormData({...studentFormData, phone: e.target.value})}
+                  placeholder="Enter phone number"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Course to Enroll *</Form.Label>
+                <Form.Select
+                  value={`${studentFormData.course_id}-${studentFormData.enrollment_mode}`}
+                  onChange={(e) => {
+                    const [courseId, enrollmentMode] = e.target.value.split('-');
+                    setStudentFormData({
+                      ...studentFormData, 
+                      course_id: courseId,
+                      enrollment_mode: enrollmentMode
+                    });
+                  }}
+                  required
+                >
+                  <option value="">Select a course and mode</option>
+                  {courses.map(course => (
+                    <React.Fragment key={course.id}>
+                      <option value={`${course.id}-online`}>
+                        {course.title} - Online - ₹{course.price}
+                      </option>
+                      <option value={`${course.id}-offline`}>
+                        {course.title} - Offline - ₹{course.price}
+                      </option>
+                    </React.Fragment>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+        </Form>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={() => setShowAddStudentModal(false)}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={handleAddStudent}>
+          Add Student & Enroll
+        </Button>
+      </Modal.Footer>
+    </Modal>
+
+    {/* Edit Student Modal */}
+    <Modal show={showEditStudentModal} onHide={() => setShowEditStudentModal(false)} size="lg">
+      <Modal.Header closeButton>
+        <Modal.Title>Edit Student</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        {formError && <Alert variant="danger">{formError}</Alert>}
+        {formSuccess && <Alert variant="success">{formSuccess}</Alert>}
+        <Form>
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Full Name *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={studentFormData.full_name}
+                  onChange={(e) => setStudentFormData({...studentFormData, full_name: e.target.value})}
+                  placeholder="Enter full name"
+                  required
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Email *</Form.Label>
+                <Form.Control
+                  type="email"
+                  value={studentFormData.email}
+                  onChange={(e) => setStudentFormData({...studentFormData, email: e.target.value})}
+                  placeholder="Enter email address"
+                  required
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Phone Number</Form.Label>
+                <Form.Control
+                  type="tel"
+                  value={studentFormData.phone}
+                  onChange={(e) => setStudentFormData({...studentFormData, phone: e.target.value})}
+                  placeholder="Enter phone number"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Course</Form.Label>
+                <Form.Select
+                  value={`${studentFormData.course_id}-${studentFormData.enrollment_mode}`}
+                  onChange={(e) => {
+                    const [courseId, enrollmentMode] = e.target.value.split('-');
+                    setStudentFormData({
+                      ...studentFormData, 
+                      course_id: courseId,
+                      enrollment_mode: enrollmentMode
+                    });
+                  }}
+                >
+                  <option value="">Select a course and mode</option>
+                  {courses.map(course => (
+                    <React.Fragment key={course.id}>
+                      <option value={`${course.id}-online`}>
+                        {course.title} - Online - ₹{course.price}
+                      </option>
+                      <option value={`${course.id}-offline`}>
+                        {course.title} - Offline - ₹{course.price}
+                      </option>
+                    </React.Fragment>
+                  ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+          </Row>
+        </Form>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={() => setShowEditStudentModal(false)}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={handleUpdateStudent}>
+          Update Student
+        </Button>
+      </Modal.Footer>
+    </Modal>
+
+    {/* Add Course Modal */}
+    <Modal show={showAddCourseModal} onHide={() => setShowAddCourseModal(false)} size="lg">
+      <Modal.Header closeButton>
+        <Modal.Title>Add New Course</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        {formError && <Alert variant="danger">{formError}</Alert>}
+        {formSuccess && <Alert variant="success">{formSuccess}</Alert>}
+        <Form>
+          <Row>
+            <Col md={8}>
+              <Form.Group className="mb-3">
+                <Form.Label>Course Title *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={courseFormData.title}
+                  onChange={(e) => setCourseFormData({...courseFormData, title: e.target.value})}
+                  placeholder="Enter course title"
+                  required
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group className="mb-3">
+                <Form.Label>Price (₹) *</Form.Label>
+                <Form.Control
+                  type="number"
+                  value={courseFormData.price}
+                  onChange={(e) => setCourseFormData({...courseFormData, price: e.target.value})}
+                  placeholder="Enter price"
+                  required
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Duration</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={courseFormData.duration}
+                  onChange={(e) => setCourseFormData({...courseFormData, duration: e.target.value})}
+                  placeholder="e.g., 3 months, 6 weeks"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Category</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={courseFormData.category}
+                  onChange={(e) => setCourseFormData({...courseFormData, category: e.target.value})}
+                  placeholder="e.g., Programming, Design"
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+          <Form.Group className="mb-3">
+            <Form.Label>Description</Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={3}
+              value={courseFormData.description}
+              onChange={(e) => setCourseFormData({...courseFormData, description: e.target.value})}
+              placeholder="Enter course description"
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Check
+              type="checkbox"
+              label="Course is active"
+              checked={courseFormData.is_active}
+              onChange={(e) => setCourseFormData({...courseFormData, is_active: e.target.checked})}
+            />
+          </Form.Group>
+        </Form>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={() => setShowAddCourseModal(false)}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={handleAddCourse}>
+          Add Course
+        </Button>
+      </Modal.Footer>
+    </Modal>
+
+    {/* Edit Course Modal */}
+    <Modal show={showEditCourseModal} onHide={() => setShowEditCourseModal(false)} size="lg">
+      <Modal.Header closeButton>
+        <Modal.Title>Edit Course</Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        {formError && <Alert variant="danger">{formError}</Alert>}
+        {formSuccess && <Alert variant="success">{formSuccess}</Alert>}
+        <Form>
+          <Row>
+            <Col md={8}>
+              <Form.Group className="mb-3">
+                <Form.Label>Course Title *</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={courseFormData.title}
+                  onChange={(e) => setCourseFormData({...courseFormData, title: e.target.value})}
+                  placeholder="Enter course title"
+                  required
+                />
+              </Form.Group>
+            </Col>
+            <Col md={4}>
+              <Form.Group className="mb-3">
+                <Form.Label>Price (₹) *</Form.Label>
+                <Form.Control
+                  type="number"
+                  value={courseFormData.price}
+                  onChange={(e) => setCourseFormData({...courseFormData, price: e.target.value})}
+                  placeholder="Enter price"
+                  required
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Duration</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={courseFormData.duration}
+                  onChange={(e) => setCourseFormData({...courseFormData, duration: e.target.value})}
+                  placeholder="e.g., 3 months, 6 weeks"
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group className="mb-3">
+                <Form.Label>Category</Form.Label>
+                <Form.Control
+                  type="text"
+                  value={courseFormData.category}
+                  onChange={(e) => setCourseFormData({...courseFormData, category: e.target.value})}
+                  placeholder="e.g., Programming, Design"
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+          <Form.Group className="mb-3">
+            <Form.Label>Description</Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={3}
+              value={courseFormData.description}
+              onChange={(e) => setCourseFormData({...courseFormData, description: e.target.value})}
+              placeholder="Enter course description"
+            />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Check
+              type="checkbox"
+              label="Course is active"
+              checked={courseFormData.is_active}
+              onChange={(e) => setCourseFormData({...courseFormData, is_active: e.target.checked})}
+            />
+          </Form.Group>
+        </Form>
+      </Modal.Body>
+      <Modal.Footer>
+        <Button variant="secondary" onClick={() => setShowEditCourseModal(false)}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={handleUpdateCourse}>
+          Update Course
+        </Button>
+      </Modal.Footer>
+    </Modal>
 
     </Container>
   );
