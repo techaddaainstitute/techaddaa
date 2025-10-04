@@ -538,6 +538,7 @@ export class AdminDatasource {
           status,
           due_date,
           paid_date,
+          created_at,
           course_mode,
           payment_type,
           transaction_id,
@@ -561,6 +562,14 @@ export class AdminDatasource {
 
       // Calculate financial statistics
       const fees = feesData || [];
+      
+      // Debug logging
+      console.log('🔍 Total fees records:', fees.length);
+      const uniqueStatuses = [...new Set(fees.map(fee => fee.status))];
+      console.log('🏷️ Unique status values:', uniqueStatuses);
+      const paidFees = fees.filter(fee => fee.status === 'paid');
+      console.log('💰 Paid fees count:', paidFees.length);
+      
       const totalRevenue = fees
         .filter(fee => fee.status === 'paid')
         .reduce((sum, fee) => sum + (fee.installment_amount || 0), 0);
@@ -582,7 +591,27 @@ export class AdminDatasource {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const recentPaymentRecords = fees
-        .filter(fee => fee.status === 'paid' && new Date(fee.created_at || fee.paid_date || new Date()) >= thirtyDaysAgo)
+        .filter(fee => {
+          const isPaid = fee.status === 'paid';
+          const dateToCheck = new Date(fee.created_at || fee.paid_date || new Date());
+          const isRecent = dateToCheck >= thirtyDaysAgo;
+          
+          // Debug logging for first few records
+          if (fees.indexOf(fee) < 3) {
+            console.log(`🔍 Record ${fees.indexOf(fee) + 1}:`, {
+              id: fee.id,
+              status: fee.status,
+              isPaid,
+              created_at: fee.created_at,
+              paid_date: fee.paid_date,
+              dateToCheck: dateToCheck.toISOString(),
+              isRecent,
+              willInclude: isPaid && isRecent
+            });
+          }
+          
+          return isPaid && isRecent;
+        })
         .sort((a, b) => new Date(b.paid_date || b.created_at) - new Date(a.paid_date || a.created_at)) // Sort by date descending
         .map(fee => {
           const paymentDate = new Date(fee.paid_date || fee.created_at);
@@ -611,6 +640,20 @@ export class AdminDatasource {
           };
         })
         .slice(0, 10); // Limit to 10 recent payments
+
+      console.log('📋 Final recent payment records:', recentPaymentRecords.length);
+      recentPaymentRecords.forEach((payment, index) => {
+        if (index < 3) {
+          console.log(`Payment ${index + 1}:`, {
+            id: payment.id,
+            student: payment.student_name,
+            course: payment.course_title,
+            status: payment.status,
+            payment_datetime: payment.payment_datetime,
+            amount: payment.amount
+          });
+        }
+      });
 
       const recentPaymentsTotal = recentPaymentRecords
         .reduce((sum, payment) => sum + payment.amount, 0);
