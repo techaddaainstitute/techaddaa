@@ -48,12 +48,17 @@ const Courses = () => {
     const fetchCourses = async () => {
       try {
         setLoading(true);
-        const courseUsecase = new CourseUsecase();
-        const fetchedCourses = await courseUsecase.getAllCourses();
+        const result = await CourseUsecase.getAllCoursesUsecase();
         
-        // Convert to mock course format for compatibility
-        const mockFormatCourses = fetchedCourses.map(course => courseUsecase.convertToMockCourseFormat(course));
-        setCourses(mockFormatCourses);
+        if (result.success) {
+          // Convert to mock course format for compatibility
+          const mockFormatCourses = CourseUsecase.convertToMockCourseFormat(result.data);
+          setCourses(mockFormatCourses);
+        } else {
+          console.error('Error fetching courses:', result.error);
+          // Fallback to mock courses if database fetch fails
+          setCourses(mockCourses || []);
+        }
       } catch (error) {
         console.error('Error fetching courses:', error);
         // Fallback to mock courses if database fetch fails

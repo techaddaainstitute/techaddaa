@@ -7,84 +7,48 @@ import Payment from '../model/Payment';
  */
 export class PaymentDatasource {
 
-  // ==================== PAYMENT CREATION ====================
-
-  /**
-   * Create a new payment record
-   * @param {Object} paymentData - Payment information
-   * @returns {Object} Result with success/error status
-   */
-  static async createPayment(paymentData) {
+  // New method using Edge Function for payment verification
+  static async verifyAndCreatePaymentSecure(paymentRequestId, paymentData) {
     try {
-      const payment = Payment.createNew(paymentData);
+      console.log('🔐 Using Edge Function to verify and create payment:', paymentRequestId);
 
-      if (!payment.isValid()) {
-        throw new Error('Invalid payment data provided');
-      }
-
-      const { data, error } = await supabase
-        .from('payments')
-        .insert([payment.toJSON()])
-        .select()
-        .single();
+      // Call Supabase Edge Function for verification
+      const { data, error } = await supabase.functions.invoke('instamojo-payment/verify', {
+        body: {
+          payment_request_id: paymentRequestId,
+          payment_data: paymentData
+        }
+      });
 
       if (error) {
-        console.error('Error creating payment:', error);
-        throw error;
+        console.error('Edge Function verification error:', error);
+        throw new Error(`Payment verification failed: ${error.message}`);
       }
+
+      if (!data.success) {
+        console.error('Payment verification failed:', data);
+        throw new Error(`Payment verification failed: ${data.error}`);
+      }
+
+      console.log('✅ Payment verification completed:', data);
+
+      // Clean up localStorage
+      localStorage.removeItem(`payment_data_${paymentRequestId}`);
 
       return {
         success: true,
-        data: Payment.fromDatabaseRow(data),
-        message: 'Payment record created successfully'
+        payment_completed: data.payment_completed,
+        payment_request: data.payment_request,
+        payment_record: data.payment_record
       };
+
     } catch (error) {
-      console.error('PaymentDatasource.createPayment error:', error);
-      return {
-        success: false,
-        error: error.message || 'Failed to create payment record'
-      };
+      console.error('Error in verifyAndCreatePaymentSecure:', error);
+      throw error;
     }
   }
 
-  /**
-   * Create multiple payment records (for EMI payments)
-   * @param {Array} paymentsData - Array of payment information
-   * @returns {Object} Result with success/error status
-   */
-  static async createMultiplePayments(paymentsData) {
-    try {
-      const payments = paymentsData.map(data => Payment.createNew(data).toJSON());
-
-      const { data, error } = await supabase
-        .from('payments')
-        .insert(payments)
-        .select();
-
-      if (error) {
-        console.error('Error creating multiple payments:', error);
-        throw error;
-      }
-
-      return {
-        success: true,
-        data: data.map(row => Payment.fromDatabaseRow(row)),
-        message: `${data.length} payment records created successfully`
-      };
-    } catch (error) {
-      console.error('PaymentDatasource.createMultiplePayments error:', error);
-      return {
-        success: false,
-        error: error.message || 'Failed to create payment records'
-      };
-    }
-  }
-
-  /**
-   * Generate Instamojo payment link
-   * @param {Object} paymentData - Payment information for Instamojo
-   * @returns {Object} Result with payment link or error
-   */
+  // Legacy method (keeping for backward compatibility)
   static async generateInstamojoPayment(paymentData) {
     try {
       const {
@@ -192,10 +156,7 @@ export class PaymentDatasource {
         payment_type: paymentData.payment_type || 'course_fee',
         description: purpose,
         gateway_payment_id: result.payment_request.id,
-        gateway_response: result,
         instamojo_payment_request_id: result.payment_request.id,
-        instamojo_longurl: result.payment_request.longurl,
-        instamojo_shorturl: result.payment_request.shorturl,
         buyer_name: paymentData.buyer_name,
         buyer_email: paymentData.email,
         buyer_phone: paymentData.phone
@@ -225,149 +186,38 @@ export class PaymentDatasource {
     }
   }
 
-  /**
-   * Verify Instamojo payment status
-   * @param {string} paymentRequestId - Instamojo payment request ID
-   * @returns {Object} Payment status result
-   */
-  static async verifyInstamojoPayment(paymentRequestId) {
-    try {
-      // Get environment variables
-      const apiKey = process.env.REACT_APP_INSTAMOJO_API_KEY;
-      const authToken = process.env.REACT_APP_INSTAMOJO_AUTH_TOKEN;
-      const endpoint = process.env.REACT_APP_INSTAMOJO_ENDPOINT;
 
-      // Check if in development mode
-      const isDevelopment = process.env.NODE_ENV === 'development' ||
-        endpoint?.includes('test') ||
-        paymentRequestId?.startsWith('MOCK_') ||
-        !apiKey || !authToken;
 
-      let result;
 
-      if (isDevelopment) {
-        // Mock verification for development
-        console.log('🔧 Development mode: Verifying mock Instamojo payment');
-        result = {
-          success: true,
-          payment_request: {
-            id: paymentRequestId,
-            status: 'Completed',
-            amount: '1000', // Mock amount
-            purpose: 'Course Enrollment Payment',
-            payment: {
-              payment_id: `PAY_${Date.now()}`,
-              status: 'Credit',
-              amount: '1000'
-            }
-          }
-        };
-      } else {
-        // Real API call for production
-        const response = await fetch(`${endpoint}payment-requests/${paymentRequestId}/`, {
-          method: 'GET',
-          headers: {
-            'X-Api-Key': apiKey,
-            'X-Auth-Token': authToken
-          }
-        });
-
-        // Check if response is HTML (error page)
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('text/html')) {
-          throw new Error('Invalid API response - received HTML instead of JSON. Please check API credentials and endpoint.');
-        }
-
-        result = await response.json();
-
-        if (!response.ok || !result.success) {
-          throw new Error(result.message || 'Failed to verify payment status');
-        }
-      }
-
-      return {
-        success: true,
-        data: result.payment_request,
-        message: 'Payment status verified successfully'
-      };
-
-    } catch (error) {
-      console.error('PaymentDatasource.verifyInstamojoPayment error:', error);
-      return {
-        success: false,
-        error: error.message || 'Failed to verify payment status'
-      };
-    }
-  }
 
   /**
-   * Verify Instamojo payment and create database record after successful verification
-   * @param {string} paymentRequestId - Payment request ID from Instamojo
-   * @param {Object} paymentData - Payment data to store in database
+   * Create a new payment record in the database
+   * @param {Object} paymentData - Payment data to store
    * @returns {Object} Result with success/error status
    */
-  static async verifyAndCreatePayment(paymentRequestId, paymentData) {
+  static async createPayment(paymentData) {
     try {
-      // First verify the payment with Instamojo
-      const verificationResult = await this.verifyInstamojoPayment(paymentRequestId);
-      
-      if (!verificationResult.success) {
-        return {
-          success: false,
-          error: 'Payment verification failed'
-        };
-      }
+      const { data, error } = await supabase
+        .from('payments')
+        .insert([paymentData])
+        .select()
+        .single();
 
-      const paymentRequest = verificationResult.data;
-      
-      // Check if payment is successful
-      const isPaymentSuccessful = paymentRequest.status === 'Completed' || 
-                                  (paymentRequest.payment && paymentRequest.payment.status === 'Credit');
-
-      if (!isPaymentSuccessful) {
-        return {
-          success: false,
-          error: 'Payment not completed successfully'
-        };
-      }
-
-      // Update payment data with verification results
-      const updatedPaymentData = {
-        ...paymentData,
-        payment_status: 'completed',
-        gateway_transaction_id: paymentRequest.payment?.payment_id || paymentRequest.id,
-        payment_date: new Date().toISOString(),
-        gateway_response: {
-          ...paymentData.gateway_response,
-          verification_response: paymentRequest
-        }
-      };
-
-      // Create payment record in database
-      const dbResult = await this.createPayment(updatedPaymentData);
-
-      if (!dbResult.success) {
-        console.error('Failed to create payment record after verification:', dbResult.error);
-        return {
-          success: false,
-          error: 'Payment verified but failed to create database record'
-        };
+      if (error) {
+        console.error('Error creating payment:', error);
+        throw error;
       }
 
       return {
         success: true,
-        data: {
-          payment: dbResult.data,
-          verification: paymentRequest
-        },
-        message: 'Payment verified and recorded successfully'
+        data: Payment.fromDatabaseRow(data),
+        message: 'Payment created successfully'
       };
-
     } catch (error) {
-      console.error('PaymentDatasource.verifyAndCreatePayment error:', error);
+      console.error('PaymentDatasource.createPayment error:', error);
       return {
         success: false,
-        error: error.message || 'Failed to verify and create payment record'
+        error: error.message || 'Failed to create payment'
       };
     }
   }
@@ -673,11 +523,11 @@ export class PaymentDatasource {
    */
   static async updateGatewayResponse(paymentId, gatewayResponse) {
     try {
+      // Since gateway_response and gateway_transaction_id columns don't exist in the actual database,
+      // we'll just update the updated_at timestamp to indicate the payment was processed
       const { data, error } = await supabase
         .from('payments')
         .update({
-          gateway_response: gatewayResponse,
-          gateway_transaction_id: gatewayResponse.transaction_id || gatewayResponse.txnid,
           updated_at: new Date().toISOString()
         })
         .eq('id', paymentId)

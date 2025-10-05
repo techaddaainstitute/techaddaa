@@ -214,8 +214,7 @@ export class PaymentUsecase {
       }
 
       const result = await PaymentDatasource.updatePaymentStatus(paymentId, 'failed', {
-        failure_reason: failureReason,
-        gateway_response: gatewayResponse
+        failure_reason: failureReason
       });
 
       if (result.success) {

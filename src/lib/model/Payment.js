@@ -12,25 +12,18 @@ export class Payment {
     amount = 0,
     currency = 'INR',
     payment_status = 'pending',
-    payment_method = null,
+    payment_method = 'instamojo',
     payment_type = 'course_fee',
     gateway_payment_id = null,
-    gateway_order_id = null,
-    gateway_transaction_id = null,
-    gateway_response = {},
     instamojo_payment_id = null,
     instamojo_payment_request_id = null,
-    instamojo_longurl = null,
-    instamojo_shorturl = null,
     description = '',
-    buyer_name = null,
-    buyer_email = null,
-    buyer_phone = null,
+    buyer_name = '',
+    email = '',
+    phone = '',
     payment_date = null,
     created_at = null,
-    updated_at = null,
-    ip_address = null,
-    user_agent = null
+    updated_at = null
   } = {}) {
     this.id = id;
     this.user_id = user_id;
@@ -39,20 +32,15 @@ export class Payment {
     this.amount = parseFloat(amount) || 0;
     this.currency = currency;
     this.payment_status = payment_status;
-    this.payment_method = payment_method;
-    this.payment_type = payment_type;
+    this.payment_method = payment_method || 'instamojo';
+    this.payment_type = payment_type || 'course_fee';
     this.gateway_payment_id = gateway_payment_id;
-    this.gateway_order_id = gateway_order_id;
-    this.gateway_transaction_id = gateway_transaction_id;
-    this.gateway_response = gateway_response || {};
     this.instamojo_payment_id = instamojo_payment_id;
     this.instamojo_payment_request_id = instamojo_payment_request_id;
-    this.instamojo_longurl = instamojo_longurl;
-    this.instamojo_shorturl = instamojo_shorturl;
     this.description = description;
     this.buyer_name = buyer_name;
-    this.buyer_email = buyer_email;
-    this.buyer_phone = buyer_phone;
+    this.email = email;
+    this.phone = phone;
     this.payment_date = payment_date;
     this.created_at = created_at;
     this.updated_at = updated_at;
@@ -146,17 +134,12 @@ export class Payment {
       payment_method: this.payment_method,
       payment_type: this.payment_type,
       gateway_payment_id: this.gateway_payment_id,
-      gateway_order_id: this.gateway_order_id,
-      gateway_transaction_id: this.gateway_transaction_id,
-      gateway_response: this.gateway_response,
       instamojo_payment_id: this.instamojo_payment_id,
       instamojo_payment_request_id: this.instamojo_payment_request_id,
-      instamojo_longurl: this.instamojo_longurl,
-      instamojo_shorturl: this.instamojo_shorturl,
       description: this.description,
       buyer_name: this.buyer_name,
-      buyer_email: this.buyer_email,
-      buyer_phone: this.buyer_phone,
+      email: this.email,
+      phone: this.phone,
       payment_date: this.payment_date,
       created_at: this.created_at,
       updated_at: this.updated_at,
@@ -182,17 +165,12 @@ export class Payment {
       payment_method: row.payment_method,
       payment_type: row.payment_type,
       gateway_payment_id: row.gateway_payment_id,
-      gateway_order_id: row.gateway_order_id,
-      gateway_transaction_id: row.gateway_transaction_id,
-      gateway_response: row.gateway_response,
       instamojo_payment_id: row.instamojo_payment_id,
       instamojo_payment_request_id: row.instamojo_payment_request_id,
-      instamojo_longurl: row.instamojo_longurl,
-      instamojo_shorturl: row.instamojo_shorturl,
       description: row.description,
       buyer_name: row.buyer_name,
-      buyer_email: row.buyer_email,
-      buyer_phone: row.buyer_phone,
+      email: row.email,
+      phone: row.phone,
       payment_date: row.payment_date,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -206,24 +184,32 @@ export class Payment {
     course_id,
     enrollment_id = null,
     amount,
+    currency = 'INR',
     payment_method = 'instamojo',
     payment_type = 'course_fee',
+    gateway_payment_id = null,
+    instamojo_payment_id = null,
+    instamojo_payment_request_id = null,
     description = '',
-    buyer_name = null,
-    buyer_email = null,
-    buyer_phone = null
+    buyer_name = '',
+    email = '',
+    phone = ''
   }) {
     return new Payment({
       user_id,
       course_id,
       enrollment_id,
       amount,
+      currency,
       payment_method,
       payment_type,
+      gateway_payment_id,
+      instamojo_payment_id,
+      instamojo_payment_request_id,
       description,
       buyer_name,
-      buyer_email,
-      buyer_phone,
+      email,
+      phone,
       payment_status: 'pending',
       created_at: new Date().toISOString()
     });

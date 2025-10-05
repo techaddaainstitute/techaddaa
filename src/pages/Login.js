@@ -45,11 +45,6 @@ const Login = () => {
     return phoneRegex.test(phoneNumber);
   };
 
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
 
   const handleSendOTP = async (e) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Container, Row, Col, Card, Button, Spinner, Alert } from 'react-bootstrap';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -21,83 +21,155 @@ const PaymentSuccess = () => {
   // Get payment parameters from URL
   const paymentId = searchParams.get('payment_id');
   const paymentRequestId = searchParams.get('payment_request_id');
+  const urlPaymentStatus = searchParams.get('payment_status');
 
-  useEffect(() => {
-    const verifyPaymentAndEnroll = async () => {
-      if (!paymentRequestId) {
+  // Memoize the verification function to prevent recreation on every render
+  const verifyPaymentAndEnroll = useCallback(async () => {
+    console.log('🔍 PaymentSuccess: Starting payment verification...');
+    console.log('📋 URL Parameters:', {
+      paymentId,
+      paymentRequestId,
+      urlPaymentStatus
+    });
+    console.log('👤 Current user:', user);
+    
+    // Debug authentication state
+    console.log('🔍 Authentication Debug:');
+    console.log('  - User object:', user);
+    console.log('  - User ID:', user?.id);
+    console.log('  - User email:', user?.email);
+    console.log('  - User phone:', user?.phone_number);
+    console.log('  - LocalStorage techaddaa_user:', localStorage.getItem('techaddaa_user'));
+    
+    // Check if user is logged in
+    const isLoggedIn = !!user && !!user.id;
+    console.log('🔐 Is user logged in?', isLoggedIn);
+
+    if (!paymentRequestId) {
+      console.log('❌ Missing payment request ID');
+      setPaymentStatus('error');
+      setLoading(false);
+      return;
+    }
+
+    if (!user) {
+      console.log('❌ No user logged in');
+      setPaymentStatus('error');
+      setLoading(false);
+      toast.error('Please login to complete payment verification');
+      return;
+    }
+
+    // Retrieve payment data from localStorage
+    const paymentDataKey = `payment_data_${paymentRequestId}`;
+    const storedPaymentData = localStorage.getItem(paymentDataKey);
+    
+    let paymentData = null;
+    if (storedPaymentData) {
+      paymentData = JSON.parse(storedPaymentData);
+    } else {
+      console.warn('Payment data not found in localStorage, proceeding with verification only');
+    }
+
+    try {
+
+      console.log('🔍 Verifying payment with ID:', paymentRequestId);
+      console.log('📦 Payment data from localStorage:', paymentData);
+      console.log('🌐 URL parameters:', { paymentId, urlPaymentStatus, paymentRequestId });
+
+      // Verify payment using the secure Edge Function
+      console.log('🔍 Verifying payment with secure Edge Function...');
+
+      // Ensure we have payment data for verification
+      if (!paymentData && !urlPaymentStatus) {
+        console.log('❌ No payment data available for verification');
         setPaymentStatus('error');
         setLoading(false);
+        toast.error('Payment data not found. Please try again.');
         return;
       }
 
-      try {
-        // Retrieve payment data from localStorage
-        const paymentDataKey = `payment_data_${paymentRequestId}`;
-        const storedPaymentData = localStorage.getItem(paymentDataKey);
-        
-        if (!storedPaymentData) {
-          console.error('Payment data not found in localStorage');
-          setPaymentStatus('error');
-          setLoading(false);
-          return;
-        }
-
-        const paymentData = JSON.parse(storedPaymentData);
-
-        // Verify payment and create database record
-        const verificationResult = await PaymentDatasource.verifyAndCreatePayment(paymentRequestId, paymentData);
-        
-        if (!verificationResult.success) {
-          setPaymentStatus('failed');
-          setLoading(false);
-          return;
-        }
-
-        const { payment, verification } = verificationResult.data;
-        setPaymentDetails(verification);
-        setPaymentStatus('success');
-
-        // Clean up localStorage
-        localStorage.removeItem(paymentDataKey);
-
-        // Enroll user in course
-        const enrollmentResult = await purchaseCourse(payment.course_id, 'online'); // Default to online, can be enhanced
-        
-        if (enrollmentResult.success) {
-          // Create fees entry
-          const feesResult = await FeesUsecase.createEnrollmentFeesUsecase(
-            payment.user_id,
-            payment.course_id,
-            { title: verification.purpose }, // Simplified course object
-            payment.payment_type,
-            payment.amount,
-            'online', // Default mode
-            6 // Default EMI months
-          );
-          
-          if (feesResult.success) {
-            setEnrollmentStatus('success');
-            toast.success('Payment successful! You have been enrolled in the course.');
-          } else {
-            setEnrollmentStatus('partial');
-            toast.warning('Payment successful but there was an issue with enrollment. Please contact support.');
-          }
-        } else {
-          setEnrollmentStatus('failed');
-          toast.error('Payment successful but enrollment failed. Please contact support.');
-        }
-        
-      } catch (error) {
-        console.error('Error verifying payment:', error);
-        setPaymentStatus('error');
-        toast.error('Error verifying payment status');
-      } finally {
+      // Verify payment and create database record using secure Edge Function
+      const verificationResult = await PaymentDatasource.verifyAndCreatePaymentSecure(paymentRequestId, paymentData);
+      
+      if (!verificationResult.success) {
+        console.log('❌ Payment verification failed:', verificationResult);
+        setPaymentStatus('failed');
         setLoading(false);
+        toast.error(verificationResult.message || 'Payment verification failed');
+        return;
       }
-    };
 
+      // Handle verification result
+      const { payment_completed, payment_request, payment_record } = verificationResult;
+      
+      if (!payment_completed) {
+        console.log('❌ Payment not completed');
+        setPaymentStatus('pending');
+        setLoading(false);
+        toast.warning('Payment is still being processed. Please check back later.');
+        return;
+      }
+
+      setPaymentDetails(payment_request);
+      setPaymentStatus('success');
+      console.log('✅ Payment verification successful:', verificationResult);
+
+      // Clean up localStorage
+      if (paymentDataKey) {
+        localStorage.removeItem(paymentDataKey);
+      }
+
+      // Enroll user in course using payment record data
+      console.log('📚 Enrolling user in course:', payment_record.course_id);
+      const enrollmentResult = await purchaseCourse(payment_record.course_id, payment_record.payment_type || 'online');
+      
+      if (enrollmentResult.success) {
+        // Create fees entry
+        const feesResult = await FeesUsecase.createEnrollmentFeesUsecase(
+          payment_record.user_id,
+          payment_record.course_id,
+          { title: payment_request.purpose }, // Course object from payment request
+          payment_record.payment_type || 'online',
+          payment_record.amount,
+          payment_record.payment_type || 'online',
+          payment_record.emi_months || 6 // Use EMI months from payment record or default to 6
+        );
+        
+        if (feesResult.success) {
+          setEnrollmentStatus('success');
+          toast.success('Payment successful! You have been enrolled in the course.');
+          console.log('✅ Course enrollment and fees creation completed successfully');
+        } else {
+          setEnrollmentStatus('partial');
+          toast.warning('Payment successful but there was an issue with fees creation. Please contact support.');
+          console.log('⚠️ Fees creation failed:', feesResult);
+        }
+      } else {
+        setEnrollmentStatus('failed');
+        toast.error('Payment successful but enrollment failed. Please contact support.');
+        console.log('❌ Course enrollment failed:', enrollmentResult);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error verifying payment:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        paymentRequestId,
+        paymentData,
+        urlParams: { paymentId, urlPaymentStatus, paymentRequestId }
+      });
+      setPaymentStatus('error');
+      toast.error('Error verifying payment status');
+    } finally {
+      setLoading(false);
+    }
+  }, [paymentRequestId, user?.id, purchaseCourse, paymentId, urlPaymentStatus]);
+
+  useEffect(() => {
     verifyPaymentAndEnroll();
-  }, [paymentRequestId, purchaseCourse, user]);
+  }, [verifyPaymentAndEnroll]);
 
   const getStatusIcon = () => {
     switch (paymentStatus) {

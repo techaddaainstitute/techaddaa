@@ -28,23 +28,49 @@ export class AuthUsecase {
       }
 
       // Call datasource
-      const result = await AuthDatasource.signUp(email, password, userData);
+      const result = await AuthDatasource.createAuthUser(email, password, userData);
 
       if (result.error) {
+        // Handle specific domain restriction errors
+        if (result.error.message && result.error.message.includes('is invalid')) {
+          const domain = email.split('@')[1];
+          const restrictedDomains = ['gmail.com', 'yahoo.com', 'example.com', 'test.com'];
+          
+          if (restrictedDomains.includes(domain)) {
+            throw new Error(`Registration with ${domain} is currently restricted. Please try using a different email domain like hotmail.com, outlook.com, or your organization's email.`);
+          }
+        }
         throw new Error(result.error.message);
       }
 
-      // Create user model if successful
-      let user = null;
+      // Create user profile in database
       if (result.data?.user) {
-        user = User.createEmailUser({
+        const profileData = {
+          id: result.data.user.id,
+          email: result.data.user.email,
+          full_name: userData.full_name || '',
+          phone_number: userData.phone_number || '',
+          role: 'student'
+        };
+
+        const profileResult = await AuthDatasource.createUserProfile(profileData);
+        
+        if (profileResult.error) {
+          console.warn('Profile creation failed, but auth user was created:', profileResult.error);
+          // Continue with registration even if profile creation fails
+        }
+
+        // Create user model
+        const user = User.createEmailUser({
           id: result.data.user.id,
           email: result.data.user.email,
           full_name: userData.full_name || ''
         });
+
+        return AuthResponse.success(user, 'Registration successful! Please check your email for verification.');
       }
 
-      return AuthResponse.success(user, 'Registration successful! Please check your email for verification.');
+      throw new Error('User creation failed');
     } catch (error) {
       console.error('Registration usecase error:', error);
       return AuthResponse.error(error, error.message || 'Registration failed');
@@ -192,26 +218,62 @@ export class AuthUsecase {
         throw new Error('Please enter a valid email address.');
       }
 
-      // Create complete user profile
-      const newProfile = {
-        id: tempUser.id,
+      // Step 1: Create Supabase Auth user first
+      // For phone authentication, we need to create an auth user with email and a temporary password
+      const tempPassword = Math.random().toString(36).slice(-12) + 'A1!'; // Generate secure temp password
+      const userEmail = userInfo.email || `${tempUser.phone_number}@temp.techaddaa.com`; // Use provided email or generate temp email
+
+      console.log('Creating Supabase Auth user for phone registration...');
+      const authResult = await AuthDatasource.createAuthUser(userEmail, tempPassword, {
+        phone: tempUser.phone_number,
+        full_name: userInfo.full_name
+      });
+
+      if (authResult.error) {
+        console.error('Error creating Supabase Auth user:', authResult.error);
+        // Fallback to localStorage if Supabase Auth fails
+        const localProfile = {
+          id: tempUser.id,
+          phone_number: tempUser.phone_number,
+          email: userInfo.email || null,
+          full_name: userInfo.full_name,
+          date_of_birth: userInfo.date_of_birth,
+          role: 'student',
+          phone: tempUser.phone_number,
+          auth_type: 'phone',
+          created_at: new Date().toISOString()
+        };
+        const user = User.fromJSON(localProfile);
+        AuthDatasource.storeUserLocally(localProfile);
+        AuthDatasource.clearTempUser();
+
+        return AuthResponse.success(user, 'Account created successfully (local storage)!');
+      }
+
+      // Step 2: Update the auto-created user profile with additional information
+      // The trigger already created a basic profile, so we need to update it
+      const profileUpdates = {
         phone_number: tempUser.phone_number,
-        email: userInfo.email || null,
+        email: userInfo.email || userEmail,
         full_name: userInfo.full_name,
         date_of_birth: userInfo.date_of_birth,
-        role: 'student',
-        created_at: new Date().toISOString()
+        role: 'student'
       };
 
-      // Try to create profile in Supabase
-      const createResult = await AuthDatasource.createUserProfile(newProfile);
+      console.log('Updating auto-created user profile with Auth user ID:', authResult.user.id);
+      const updateResult = await AuthDatasource.updateUserProfile(authResult.user.id, profileUpdates);
 
       let user;
-      if (createResult.error) {
-        console.error('Error creating profile in Supabase:', createResult.error);
-        // Fallback to localStorage if Supabase fails
+      if (updateResult.error) {
+        console.error('Error updating profile in Supabase:', updateResult.error);
+        // If profile update fails, fallback to localStorage
         const localProfile = {
-          ...newProfile,
+          id: authResult.user.id,
+          phone_number: tempUser.phone_number,
+          email: userInfo.email || userEmail,
+          full_name: userInfo.full_name,
+          date_of_birth: userInfo.date_of_birth,
+          role: 'student',
           phone: tempUser.phone_number,
           auth_type: 'phone'
         };
@@ -221,9 +283,9 @@ export class AuthUsecase {
 
         return AuthResponse.success(user, 'Account created successfully (local storage)!');
       } else {
-        // Successfully created in Supabase
+        // Successfully updated in Supabase
         const userWithPhone = {
-          ...createResult.profile,
+          ...updateResult.profile,
           phone: tempUser.phone_number,
           auth_type: 'phone'
         };
@@ -231,6 +293,7 @@ export class AuthUsecase {
         AuthDatasource.storeUserLocally(userWithPhone);
         AuthDatasource.clearTempUser();
 
+        console.log('✅ User registration completed successfully in Supabase!');
         return AuthResponse.success(user, 'Account created successfully!');
       }
     } catch (error) {

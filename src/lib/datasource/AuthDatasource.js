@@ -157,6 +157,27 @@ export class AuthDatasource {
     }
   }
 
+  /**
+   * Create Supabase Auth user
+   */
+  static async createAuthUser(email, password, userData = {}) {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userData
+        }
+      });
+      
+      if (error) throw error;
+      return { user: data.user, session: data.session, error: null };
+    } catch (error) {
+      console.error('AuthDatasource createAuthUser error:', error);
+      return { user: null, session: null, error };
+    }
+  }
+
   // ==================== USER PROFILE OPERATIONS ====================
 
   /**

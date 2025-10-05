@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { supabase } from '../lib/supabase';
 import AuthUsecase from '../lib/usecase/AuthUsecase';
@@ -416,13 +416,26 @@ export const AuthProvider = ({ children }) => {
   // Function to convert integer course IDs to consistent UUIDs
 
 
-  const purchaseCourse = async (courseId, mode = 'online') => {
+  const purchaseCourse = useCallback(async (courseId, mode = 'online') => {
     if (!user) return { success: false, message: 'Please login first' };
 
     setLoading(true);
     try {
-      const course = courses.find(c => c.id === courseId);
+      let course = courses.find(c => c.id === courseId);
 
+      // If course not found in loaded courses, try to fetch it from database
+      if (!course) {
+        console.log('🔍 Course not found in loaded courses, fetching from database...');
+        try {
+          const courseResult = await CourseUsecase.getCourseByIdUsecase(String(courseId));
+          if (courseResult.success && courseResult.data) {
+            course = courseResult.data.toMockCourseFormat();
+            console.log('✅ Successfully fetched course from database:', course.title);
+          }
+        } catch (fetchError) {
+          console.warn('⚠️ Failed to fetch course from database:', fetchError);
+        }
+      }
 
       const result = await AuthUsecase.purchaseCourseUsecase(user, courseId, mode, course);
 
@@ -447,7 +460,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, courses]);
 
   const updateProgress = async (courseId, progress) => {
     if (!user) return { success: false, message: 'Please login first' };
@@ -477,7 +490,6 @@ export const AuthProvider = ({ children }) => {
     loading,
     session,
     register,
-    // login,
     sendOTP,
     verifyOTP,
     completeUserRegistration,

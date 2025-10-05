@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Form, Alert, Badge } from 'react-bootstrap';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaArrowLeft, 
-  FaLaptop, 
-  FaBuilding, 
-  FaCreditCard, 
-  FaCalendarAlt, 
-  FaShieldAlt, 
+import {
+  FaArrowLeft,
+  FaLaptop,
+  FaBuilding,
+  FaCreditCard,
+  FaCalendarAlt,
+  FaShieldAlt,
   FaCheckCircle,
   FaGraduationCap,
   FaClock,
@@ -26,7 +26,6 @@ const Checkout = () => {
   const courseId = searchParams.get('courseId');
   const navigate = useNavigate();
   const { user, mockCourses, purchaseCourse } = useAuth();
-  
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMode, setSelectedMode] = useState('online');
@@ -75,21 +74,22 @@ const Checkout = () => {
     try {
       // Course price already includes GST
       const totalCourseAmount = selectedMode === 'online' ? course.onlinePrice : course.offlinePrice;
-      
+
       // Generate Instamojo payment link before enrollment
       const paymentData = {
-        amount: totalCourseAmount,
+        amount: 9,
+        // amount: totalCourseAmount,
         purpose: `${course.title} - ${selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1)} Mode`,
-        buyer_name: user.name || user.email,
+        buyer_name: user.full_name || 'Student',
         email: user.email,
-        phone: user.phone || '',
+        phone: user.phone_number || '',
         user_id: user.id,
         course_id: course.id,
         payment_type: paymentType
       };
 
       const paymentResult = await PaymentDatasource.generateInstamojoPayment(paymentData);
-      
+
       if (!paymentResult.success) {
         toast.error(paymentResult.error || 'Failed to generate payment link');
         return;
@@ -97,10 +97,7 @@ const Checkout = () => {
 
       // Redirect to Instamojo payment page
       window.location.href = paymentResult.data.payment_url;
-      
-      // Note: The enrollment will happen after successful payment verification
-      // This should be handled in a payment success callback/webhook
-      
+
     } catch (error) {
       console.error('Error during payment generation:', error);
       toast.error('An unexpected error occurred during payment processing');
@@ -222,7 +219,7 @@ const Checkout = () => {
                               <FaGraduationCap className="text-primary me-2" />
                               Course Details
                             </h5>
-                            
+
                             <Row className="align-items-center mb-4">
                               <Col md={8}>
                                 <h4 className="mb-2">{course.title}</h4>
@@ -244,7 +241,7 @@ const Checkout = () => {
                               </Col>
                               <Col md={4} className="text-center">
                                 <div className="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center text-white"
-                                     style={{ width: '80px', height: '80px', fontSize: '24px' }}>
+                                  style={{ width: '80px', height: '80px', fontSize: '24px' }}>
                                   <FaGraduationCap />
                                 </div>
                               </Col>
@@ -256,7 +253,7 @@ const Checkout = () => {
                             <Row>
                               <Col md={6} className="mb-3">
                                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                  <Card 
+                                  <Card
                                     className={`border-2 cursor-pointer ${selectedMode === 'online' ? 'border-primary bg-primary bg-opacity-10' : 'border-light'}`}
                                     onClick={() => setSelectedMode('online')}
                                   >
@@ -272,7 +269,7 @@ const Checkout = () => {
                               </Col>
                               <Col md={6} className="mb-3">
                                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                  <Card 
+                                  <Card
                                     className={`border-2 cursor-pointer ${selectedMode === 'offline' ? 'border-success bg-success bg-opacity-10' : 'border-light'}`}
                                     onClick={() => setSelectedMode('offline')}
                                   >
@@ -295,7 +292,7 @@ const Checkout = () => {
                               <Row>
                                 <Col md={6} className="mb-3">
                                   <motion.div whileHover={{ scale: 1.02 }}>
-                                    <Card 
+                                    <Card
                                       className={`border-2 cursor-pointer ${paymentType === 'full' ? 'border-primary bg-primary bg-opacity-10' : 'border-light'}`}
                                       onClick={() => setPaymentType('full')}
                                     >
@@ -319,7 +316,7 @@ const Checkout = () => {
                                 </Col>
                                 <Col md={6} className="mb-3">
                                   <motion.div whileHover={{ scale: 1.02 }}>
-                                    <Card 
+                                    <Card
                                       className={`border-2 cursor-pointer ${paymentType === 'emi' ? 'border-warning bg-warning bg-opacity-10' : 'border-light'}`}
                                       onClick={() => setPaymentType('emi')}
                                     >
@@ -458,7 +455,7 @@ const Checkout = () => {
                             transition={{ duration: 0.5, delay: 0.2 }}
                           >
                             <div className="bg-primary rounded-circle d-inline-flex align-items-center justify-content-center text-white mb-4"
-                                 style={{ width: '80px', height: '80px' }}>
+                              style={{ width: '80px', height: '80px' }}>
                               <FaCreditCard size={32} />
                             </div>
                           </motion.div>
@@ -554,7 +551,7 @@ const Checkout = () => {
                             transition={{ duration: 0.5, type: "spring", bounce: 0.5 }}
                           >
                             <div className="bg-success rounded-circle d-inline-flex align-items-center justify-content-center text-white mb-4"
-                                 style={{ width: '100px', height: '100px' }}>
+                              style={{ width: '100px', height: '100px' }}>
                               <FaCheckCircle size={48} />
                             </div>
                           </motion.div>
