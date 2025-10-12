@@ -3,7 +3,7 @@ import { Container, Row, Col, Card, Form, Button, Alert, InputGroup } from 'reac
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaUser, FaEnvelope, FaLock, FaEye, FaEyeSlash, FaPhone, FaGraduationCap } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import { useStudentAuth } from '../context/StudentAuthContext';
 import { toast } from 'react-toastify';
 
 const Register = () => {
@@ -19,7 +19,8 @@ const Register = () => {
   const [errors, setErrors] = useState({});
   const [acceptTerms, setAcceptTerms] = useState(false);
 
-  const { register, loading } = useAuth();
+  const { state, registerProfile } = useStudentAuth();
+  const { loading } = state;
   const navigate = useNavigate();
 
   const validateForm = () => {
@@ -70,7 +71,7 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -81,14 +82,14 @@ const Register = () => {
         phone: formData.phone || null
       };
 
-      await register(formData.email, formData.password, userData);
-      
-      toast.success('Registration successful! Please check your email to verify your account.');
+      // Note: StudentAuth uses OTP-based registration through Login component
+      // For now, redirect to login page for OTP-based registration
+      toast.info('Please use the Login page for OTP-based registration.');
       navigate('/login');
     } catch (error) {
       console.error('Registration error:', error);
-      setErrors({ 
-        general: error.message || 'Registration failed. Please try again.' 
+      setErrors({
+        general: error.message || 'Registration failed. Please try again.'
       });
     }
   };
@@ -360,9 +361,9 @@ const Register = () => {
                           </div>
                         </motion.div>
                       </div>
-                      
+
                       {/* Decorative elements */}
-                      <div 
+                      <div
                         className="position-absolute"
                         style={{
                           top: '20px',
@@ -373,7 +374,7 @@ const Register = () => {
                           borderRadius: '50%'
                         }}
                       ></div>
-                      <div 
+                      <div
                         className="position-absolute"
                         style={{
                           bottom: '30px',

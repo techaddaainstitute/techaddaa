@@ -1,8 +1,8 @@
+import { AppProvider } from './AppProvider';
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import AOS from 'aos';
-
 // Components
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -15,20 +15,19 @@ import Register from './pages/Register';
 import StudentDashboard from './pages/StudentDashboard';
 import CourseDetails from './pages/CourseDetails';
 import Checkout from './pages/Checkout';
-import PaymentSuccess from './pages/PaymentSuccess';
 import Chat from './pages/Chat';
 import Fees from './pages/Fees';
+import PaymentCheck from './pages/PaymentCheck';
 import Contact from './pages/Contact';
 import TermsAndConditions from './pages/TermsAndConditions';
 import RefundPolicy from './pages/RefundPolicy';
 import AdminLogin from './pages/admin/Login';
 import AdminDashboardNew from './pages/admin/AdminDashboard';
 import AdminChangePassword from './pages/admin/AdminChangePassword';
-import OTPVerification from './components/OTPVerification';
+
 
 // Context
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { FirebaseProvider } from './context/FirebaseContext';
+import { useStudentAuth } from './context/StudentAuthContext';
 
 // Styles
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -37,7 +36,8 @@ import 'aos/dist/aos.css';
 import './App.css';
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { state } = useStudentAuth();
+  const { user, loading } = state;
 
   useEffect(() => {
     AOS.init({
@@ -65,24 +65,16 @@ function AppContent() {
               </div>
             ) : (user ? <Checkout /> : <Navigate to="/login" />)}
           />
-          <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/events" element={<Events />} />
           <Route path="/certificate" element={<CertificateDownload />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />
-          <Route path="/otp-verification" element={<OTPVerification />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route
             path="/dashboard"
-            element={loading ? (
-              <div className="d-flex justify-content-center align-items-center" style={{ height: '50vh' }}>
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
-              </div>
-            ) : (user ? <StudentDashboard /> : <Navigate to="/login" />)}
+            element={(user ? <StudentDashboard /> : <Navigate to="/login" />)}
           />
           <Route
             path="/chat"
@@ -117,6 +109,7 @@ function AppContent() {
               </div>
             ) : (user?.role === 'admin' ? <Fees /> : <Navigate to="/" />)}
           />
+          <Route path="/payment-check" element={<PaymentCheck />} />
         </Routes>
       </main>
       <Footer />
@@ -136,15 +129,15 @@ function AppContent() {
   );
 }
 
+
+
 function App() {
   return (
-    <FirebaseProvider>
-      <AuthProvider>
-        <Router>
-          <AppContent />
-        </Router>
-      </AuthProvider>
-    </FirebaseProvider>
+    <AppProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AppProvider>
   );
 }
 

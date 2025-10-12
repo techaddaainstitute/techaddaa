@@ -3,14 +3,17 @@ import { Container, Row, Col, Card, Button, Badge, Tab, Tabs } from 'react-boots
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaStar, FaUsers, FaClock, FaPlay, FaDownload, FaCertificate, FaChalkboardTeacher, FaLaptop, FaBuilding } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import { useStudentAuth } from '../context/StudentAuthContext';
+import { useCourse } from '../context/CourseContext';
 import CourseUsecase from '../lib/usecase/CourseUsecase';
 
 const CourseDetails = () => {
   const [searchParams] = useSearchParams();
   const id = searchParams.get('id');
   const navigate = useNavigate();
-  const { user, mockCourses, purchaseCourse, loading } = useAuth();
+  const { state } = useStudentAuth();
+  const { user, loading } = state;
+  const { mockCourses, purchaseCourse } = useCourse();
   const [course, setCourse] = useState(null);
   const [courseLoading, setCourseLoading] = useState(true);
 
@@ -202,7 +205,7 @@ const CourseDetails = () => {
                       className="btn-animated px-4"
                       onClick={handleEnrollNow}
                     >
-                      Enroll Now - ₹{course.onlinePrice.toLocaleString()} (incl. GST)
+                      Enroll Now - ₹{(course.onlinePrice || 0).toLocaleString()} (incl. GST)
                     </Button>
                   )}
                   <Button
@@ -430,7 +433,7 @@ const CourseDetails = () => {
                           Online Mode:
                         </span>
                         <div className="text-end">
-                          <div className="fw-bold text-primary">₹{course.onlinePrice.toLocaleString()}</div>
+                          <div className="fw-bold text-primary">₹{(course.onlinePrice || 0).toLocaleString()}</div>
                           <small className="text-muted">(incl. 18% GST)</small>
                         </div>
                       </div>
@@ -440,7 +443,7 @@ const CourseDetails = () => {
                           Offline Mode:
                         </span>
                         <div className="text-end">
-                          <div className="fw-bold text-success">₹{course.offlinePrice.toLocaleString()}</div>
+                          <div className="fw-bold text-success">₹{(course.offlinePrice || 0).toLocaleString()}</div>
                           <small className="text-muted">(incl. 18% GST)</small>
                         </div>
                       </div>

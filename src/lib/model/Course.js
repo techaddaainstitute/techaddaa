@@ -39,8 +39,8 @@ export class Course {
     this.updated_at = updated_at;
     
     // Additional fields for frontend compatibility
-    this.onlinePrice = onlinePrice || price;
-    this.offlinePrice = offlinePrice || (price * 1.3); // 30% higher for offline
+    this.onlinePrice = onlinePrice || price || 0;
+    this.offlinePrice = offlinePrice || (price ? price * 1.3 : 0); // 30% higher for offline
     this.features = features;
     this.instructor = instructor;
     this.rating = rating;

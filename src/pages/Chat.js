@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Container, Row, Col, Card, Form, Button, Badge, ListGroup, Modal } from 'react-bootstrap';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaPaperPlane, FaSmile, FaFile, FaImage, FaVideo, FaPhone, 
+import {
+  FaPaperPlane, FaSmile, FaFile, FaImage, FaVideo, FaPhone,
   FaSearch, FaEllipsisV, FaCheck, FaCheckDouble, FaClock,
   FaArrowLeft, FaInfoCircle
 } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import { useStudentAuth } from '../context/StudentAuthContext';
+import { useCourse } from '../context/CourseContext';
 import { toast } from 'react-toastify';
 
 const Chat = () => {
-  const { user, mockCourses } = useAuth();
+  const { state } = useStudentAuth();
+  const { user } = state;
+  const { mockCourses } = useCourse();
   const [selectedChat, setSelectedChat] = useState(null);
   const [message, setMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,8 +102,8 @@ const Chat = () => {
     }));
 
     // Update last message in chat list
-    setChats(prev => prev.map(chat => 
-      chat.id === selectedChat.id 
+    setChats(prev => prev.map(chat =>
+      chat.id === selectedChat.id
         ? { ...chat, lastMessage: message.trim(), timestamp: new Date().toISOString() }
         : chat
     ));
@@ -139,7 +142,7 @@ const Chat = () => {
       setTimeout(() => {
         setMessages(prev => ({
           ...prev,
-          [selectedChat.id]: prev[selectedChat.id].map(msg => 
+          [selectedChat.id]: prev[selectedChat.id].map(msg =>
             msg.id === newMessage.id ? { ...msg, status: 'delivered' } : msg
           )
         }));
@@ -149,7 +152,7 @@ const Chat = () => {
       setTimeout(() => {
         setMessages(prev => ({
           ...prev,
-          [selectedChat.id]: prev[selectedChat.id].map(msg => 
+          [selectedChat.id]: prev[selectedChat.id].map(msg =>
             msg.id === newMessage.id ? { ...msg, status: 'read' } : msg
           )
         }));
@@ -324,8 +327,8 @@ const Chat = () => {
                       <Button variant="outline-primary" size="sm">
                         <FaVideo />
                       </Button>
-                      <Button 
-                        variant="outline-primary" 
+                      <Button
+                        variant="outline-primary"
                         size="sm"
                         onClick={() => setShowChatInfo(true)}
                       >
@@ -393,8 +396,8 @@ const Chat = () => {
                       <Button variant="outline-secondary" size="sm">
                         <FaSmile />
                       </Button>
-                      <Button 
-                        variant="primary" 
+                      <Button
+                        variant="primary"
                         type="submit"
                         disabled={!message.trim()}
                       >
@@ -431,7 +434,7 @@ const Chat = () => {
                 <h5>{selectedChat.name}</h5>
                 <p className="text-muted">Instructor: {selectedChat.instructor}</p>
               </div>
-              
+
               <div className="course-info">
                 <h6>Course Details</h6>
                 <ul className="list-unstyled">

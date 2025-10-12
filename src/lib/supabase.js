@@ -15,101 +15,101 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
-// Auth helper functions
-export const authHelpers = {
-  // Sign up new user
-  signUp: async (email, password, userData = {}) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: userData
-        }
-      });
-      
-      if (error) throw error;
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
-  },
+// // Auth helper functions
+// export const authHelpers = {
+//   // Sign up new user
+//   signUp: async (email, password, userData = {}) => {
+//     try {
+//       const { data, error } = await supabase.auth.signUp({
+//         email,
+//         password,
+//         options: {
+//           data: userData
+//         }
+//       });
 
-  // Sign in user
-  signIn: async (email, password) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-      
-      if (error) throw error;
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
-  },
+//       if (error) throw error;
+//       return { data, error: null };
+//     } catch (error) {
+//       return { data: null, error };
+//     }
+//   },
 
-  // Sign out user
-  signOut: async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      return { error: null };
-    } catch (error) {
-      return { error };
-    }
-  },
+//   // Sign in user
+//   signIn: async (email, password) => {
+//     try {
+//       const { data, error } = await supabase.auth.signInWithPassword({
+//         email,
+//         password
+//       });
 
-  // Get current user
-  getCurrentUser: async () => {
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) throw error;
-      return { user, error: null };
-    } catch (error) {
-      return { user: null, error };
-    }
-  },
+//       if (error) throw error;
+//       return { data, error: null };
+//     } catch (error) {
+//       return { data: null, error };
+//     }
+//   },
 
-  // Get current session
-  getCurrentSession: async () => {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      return { session, error: null };
-    } catch (error) {
-      return { session: null, error };
-    }
-  },
+//   // Sign out user
+//   signOut: async () => {
+//     try {
+//       const { error } = await supabase.auth.signOut();
+//       if (error) throw error;
+//       return { error: null };
+//     } catch (error) {
+//       return { error };
+//     }
+//   },
 
-  // Reset password
-  resetPassword: async (email) => {
-    try {
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
-      });
-      
-      if (error) throw error;
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
-  },
+//   // Get current user
+//   getCurrentUser: async () => {
+//     try {
+//       const { data: { user }, error } = await supabase.auth.getUser();
+//       if (error) throw error;
+//       return { user, error: null };
+//     } catch (error) {
+//       return { user: null, error };
+//     }
+//   },
 
-  // Update password
-  updatePassword: async (newPassword) => {
-    try {
-      const { data, error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-      
-      if (error) throw error;
-      return { data, error: null };
-    } catch (error) {
-      return { data: null, error };
-    }
-  }
-};
+//   // Get current session
+//   getCurrentSession: async () => {
+//     try {
+//       const { data: { session }, error } = await supabase.auth.getSession();
+//       if (error) throw error;
+//       return { session, error: null };
+//     } catch (error) {
+//       return { session: null, error };
+//     }
+//   },
+
+//   // Reset password
+//   resetPassword: async (email) => {
+//     try {
+//       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+//         redirectTo: `${window.location.origin}/reset-password`
+//       });
+
+//       if (error) throw error;
+//       return { data, error: null };
+//     } catch (error) {
+//       return { data: null, error };
+//     }
+//   },
+
+//   // Update password
+//   updatePassword: async (newPassword) => {
+//     try {
+//       const { data, error } = await supabase.auth.updateUser({
+//         password: newPassword
+//       });
+
+//       if (error) throw error;
+//       return { data, error: null };
+//     } catch (error) {
+//       return { data: null, error };
+//     }
+//   }
+// };
 
 export default supabase;

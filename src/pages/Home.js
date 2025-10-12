@@ -3,13 +3,13 @@ import { Container, Row, Col, Card, Button, Badge, Carousel } from 'react-bootst
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaPlay, FaUsers, FaStar, FaClock, FaCalendarAlt, FaMapMarkerAlt, FaArrowRight, FaBookOpen, FaCertificate, FaChevronLeft, FaChevronRight, FaRocket, FaHandshake } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import { useCourse } from '../context/CourseContext';
 import CourseUsecase from '../lib/usecase/CourseUsecase';
 import Lottie from 'lottie-react';
 import studentAnimationData from '../assets/student-anim.json';
 
 const Home = () => {
-  const { mockCourses } = useAuth();
+  const { mockCourses } = useCourse();
   // const [currentSlide, setCurrentSlide] = useState(0);
   const [currentEventSlide, setCurrentEventSlide] = useState(0);
   const [featuredCourses, setFeaturedCourses] = useState([]);
@@ -486,7 +486,7 @@ const Home = () => {
                               <div className="d-flex justify-content-between align-items-center">
                                 <div className="text-center">
                                   <div className="text-muted small" style={{ fontSize: window.innerWidth < 768 ? '0.7rem' : '0.875rem' }}>Starting from</div>
-                                  <div className="fw-bold text-primary" style={{ fontSize: window.innerWidth < 768 ? '0.9rem' : '1rem' }}>₹{course.onlinePrice.toLocaleString()}</div>
+                                  <div className="fw-bold text-primary" style={{ fontSize: window.innerWidth < 768 ? '0.9rem' : '1rem' }}>₹{(course.onlinePrice || 0).toLocaleString()}</div>
                                 </div>
                                 <div className="text-center">
                                   <div className="text-muted small" style={{ fontSize: window.innerWidth < 768 ? '0.7rem' : '0.875rem' }}>Instructor</div>

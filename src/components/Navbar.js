@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Navbar as BootstrapNavbar, Nav, Container, Button, Dropdown } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaUser, FaSignOutAlt, FaChartLine, FaComments, FaCog } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import { BlocConsumer } from '../tool';
+import { useStudentAuth } from '../context/StudentAuthContext';
 
 const Navbar = () => {
-  const { user, logout } = useAuth();
+  const { state, logout } = useStudentAuth();
+  // const user = state.user;
+  // const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -29,6 +32,7 @@ const Navbar = () => {
       setExpanded(false);
     }
   };
+
 
   const handleNavClick = () => {
     setExpanded(false);
@@ -64,7 +68,7 @@ const Navbar = () => {
             alt="TechAddaa Logo"
             height={windowWidth < 768 ? "50" : "70"}
             className="me-2"
-            style={{ 
+            style={{
               filter: 'none',
               transition: 'height 0.3s ease'
             }}
@@ -160,122 +164,130 @@ const Navbar = () => {
               Contact Us
             </Nav.Link>
           </Nav>
+          <BlocConsumer
+            state={state}
+            listener={(s) => {
 
-          <Nav className="ms-auto align-items-center">
-            {user ? (
-              <>
-                {user.role === 'admin' && (
+            }}
+            builder={(s) => (
+              <Nav className="ms-auto align-items-center">
+                {s.user ? (
                   <>
-                    <Nav.Link
-                      as={Link}
-                      to="/admin"
-                      className="mx-2 fw-medium"
-                      onClick={handleNavClick}
-                      style={{
-                        color: '#374151',
-                        textDecoration: 'none',
-                        fontSize: '1rem',
-                        transition: 'color 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => e.target.style.color = '#f97316'}
-                      onMouseLeave={(e) => e.target.style.color = '#374151'}
-                    >
-                      <FaCog className="me-1" /> Admin
-                    </Nav.Link>
-                    <Nav.Link
-                      as={Link}
-                      to="/fees"
-                      className="mx-2 fw-medium"
-                      onClick={handleNavClick}
-                      style={{
-                        color: '#374151',
-                        textDecoration: 'none',
-                        fontSize: '1rem',
-                        transition: 'color 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => e.target.style.color = '#f97316'}
-                      onMouseLeave={(e) => e.target.style.color = '#374151'}
-                    >
-                      <FaChartLine className="me-1" /> Fees
-                    </Nav.Link>
-                  </>
-                )}
+                    {/* {s.user.role === 'admin' && (
+                      <>
+                        <Nav.Link
+                          as={Link}
+                          to="/admin"
+                          className="mx-2 fw-medium"
+                          onClick={handleNavClick}
+                          style={{
+                            color: '#374151',
+                            textDecoration: 'none',
+                            fontSize: '1rem',
+                            transition: 'color 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => e.target.style.color = '#f97316'}
+                          onMouseLeave={(e) => e.target.style.color = '#374151'}
+                        >
+                          <FaCog className="me-1" /> Admin
+                        </Nav.Link>
+                        <Nav.Link
+                          as={Link}
+                          to="/fees"
+                          className="mx-2 fw-medium"
+                          onClick={handleNavClick}
+                          style={{
+                            color: '#374151',
+                            textDecoration: 'none',
+                            fontSize: '1rem',
+                            transition: 'color 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => e.target.style.color = '#f97316'}
+                          onMouseLeave={(e) => e.target.style.color = '#374151'}
+                        >
+                          <FaChartLine className="me-1" /> Fees
+                        </Nav.Link>
+                      </>
+                    )} */}
 
-                <Dropdown align="end">
-                  <Dropdown.Toggle
-                    className="border-0 d-flex align-items-center"
+                    <Dropdown align="end">
+                      <Dropdown.Toggle
+                        className="border-0 d-flex align-items-center"
+                        style={{
+                          background: '#f97316',
+                          color: 'white',
+                          borderRadius: '6px',
+                          padding: '8px 16px',
+                          fontSize: '0.9rem',
+                          fontWeight: '500'
+                        }}
+                      >
+                        <FaUser className="me-2" />
+                        {s.user['full_name']}
+                      </Dropdown.Toggle>
+
+                      <Dropdown.Menu className="glass-effect border-0 mt-2">
+                        <Dropdown.Item
+                          as={Link}
+                          to="/dashboard"
+                          className="d-flex align-items-center"
+                          onClick={handleNavClick}
+                        >
+                          <FaChartLine className="me-2" />
+                          Dashboard
+                        </Dropdown.Item>
+
+                        {s.user.purchasedCourses && s.user.purchasedCourses.length > 0 && (
+                          <Dropdown.Item
+                            as={Link}
+                            to="/chat"
+                            className="d-flex align-items-center"
+                            onClick={handleNavClick}
+                          >
+                            <FaComments className="me-2" />
+                            Chat Support
+                          </Dropdown.Item>
+                        )}
+
+                        <Dropdown.Divider />
+
+                        <Dropdown.Item
+                          onClick={handleLogout}
+                          className="d-flex align-items-center text-danger"
+                        >
+                          <FaSignOutAlt className="me-2" />
+                          Logout
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown>
+                  </>
+                ) : (
+                  <Button
+                    as={Link}
+                    to="/login"
+                    className="mx-2"
+                    onClick={handleNavClick}
                     style={{
                       background: '#f97316',
+                      border: 'none',
                       color: 'white',
                       borderRadius: '6px',
-                      padding: '8px 16px',
-                      fontSize: '0.9rem',
-                      fontWeight: '500'
+                      padding: '8px 20px',
+                      fontSize: '1rem',
+                      fontWeight: '500',
+                      transition: 'background-color 0.2s ease'
                     }}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#ea580c'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = '#f97316'}
                   >
                     <FaUser className="me-2" />
-                    {user.full_name || user.email || 'User'}
-                  </Dropdown.Toggle>
-
-                  <Dropdown.Menu className="glass-effect border-0 mt-2">
-                    <Dropdown.Item
-                      as={Link}
-                      to="/dashboard"
-                      className="d-flex align-items-center"
-                      onClick={handleNavClick}
-                    >
-                      <FaChartLine className="me-2" />
-                      Dashboard
-                    </Dropdown.Item>
-
-                    {user.purchasedCourses && user.purchasedCourses.length > 0 && (
-                      <Dropdown.Item
-                        as={Link}
-                        to="/chat"
-                        className="d-flex align-items-center"
-                        onClick={handleNavClick}
-                      >
-                        <FaComments className="me-2" />
-                        Chat Support
-                      </Dropdown.Item>
-                    )}
-
-                    <Dropdown.Divider />
-
-                    <Dropdown.Item
-                      onClick={handleLogout}
-                      className="d-flex align-items-center text-danger"
-                    >
-                      <FaSignOutAlt className="me-2" />
-                      Logout
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown>
-              </>
-            ) : (
-              <Button
-                as={Link}
-                to="/login"
-                className="mx-2"
-                onClick={handleNavClick}
-                style={{
-                  background: '#f97316',
-                  border: 'none',
-                  color: 'white',
-                  borderRadius: '6px',
-                  padding: '8px 20px',
-                  fontSize: '1rem',
-                  fontWeight: '500',
-                  transition: 'background-color 0.2s ease'
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = '#ea580c'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = '#f97316'}
-              >
-                <FaUser className="me-2" />
-                Login/Register
-              </Button>
+                    Login/Register
+                  </Button>
+                )}
+              </Nav>
             )}
-          </Nav>
+          />
+
         </BootstrapNavbar.Collapse>
       </Container>
     </BootstrapNavbar>

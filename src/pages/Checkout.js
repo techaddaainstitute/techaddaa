@@ -15,17 +15,22 @@ import {
   FaUsers,
   FaStar
 } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import { useStudentAuth } from '../context/StudentAuthContext';
+import { useStudentDashboard } from '../context/StudentDashboardContext';
+import { usePayment } from '../context/PaymentContext';
+import { useCourse } from '../context/CourseContext';
 import CourseUsecase from '../lib/usecase/CourseUsecase';
-import FeesUsecase from '../lib/usecase/FeesUsecase';
-import PaymentDatasource from '../lib/datasource/PaymentDatasource';
 import { toast } from 'react-toastify';
 
 const Checkout = () => {
   const [searchParams] = useSearchParams();
+  const { initiatePayment } = usePayment();
   const courseId = searchParams.get('courseId');
   const navigate = useNavigate();
-  const { user, mockCourses, purchaseCourse } = useAuth();
+  const { state } = useStudentAuth();
+  const { user } = state;
+  const { mockCourses, purchaseCourse } = useCourse();
+  const { createMyCourse } = useStudentDashboard();
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedMode, setSelectedMode] = useState('online');
@@ -75,32 +80,45 @@ const Checkout = () => {
       // Course price already includes GST
       const totalCourseAmount = selectedMode === 'online' ? course.onlinePrice : course.offlinePrice;
 
-      // Generate Instamojo payment link before enrollment
-      const paymentData = {
-        amount: 9,
-        // amount: totalCourseAmount,
-        purpose: `${course.title} - ${selectedMode.charAt(0).toUpperCase() + selectedMode.slice(1)} Mode`,
-        buyer_name: user.full_name || 'Student',
-        email: user.email,
-        phone: user.phone_number || '',
-        user_id: user.id,
-        course_id: course.id,
-        payment_type: paymentType
+      // Prepare enrollment data
+      const enrollmentData = {
+        enrollment_mode: selectedMode,
+        price_paid: totalCourseAmount,
+        payment_type: paymentType,
+        ...(paymentType === 'emi' && { emi_months: emiMonths })
       };
 
-      const paymentResult = await PaymentDatasource.generateInstamojoPayment(paymentData);
+      // Store enrollment data for post-payment processing
+      const enrollmentPayload = {
+        type: 'newcourse',
+        course_id: course.id,
+        enrollmentData: enrollmentData
+      };
+      localStorage.setItem('pendingEnrollment', JSON.stringify(enrollmentPayload));
 
-      if (!paymentResult.success) {
-        toast.error(paymentResult.error || 'Failed to generate payment link');
-        return;
+      // Initiate payment
+      const paymentResult = await initiatePayment({
+        amount: totalCourseAmount,
+        currency: 'INR',
+        purpose: `Course Enrollment: ${course.title} (ID${course.id})`,
+        name: user.full_name,
+        email: user.email,
+        phone: user.phone_number,
+        redirect_url: `${window.location.origin}/payment-check`
+      });
+
+      if (paymentResult.success) {
+        // Payment initiated successfully, user will be redirected to payment gateway
+        console.log('Payment initiated successfully');
+      } else {
+        // Remove enrollment data if payment initiation failed
+        localStorage.removeItem('pendingEnrollment');
+        toast.error('Payment initiation failed. Please try again.');
       }
 
-      // Redirect to Instamojo payment page
-      window.location.href = paymentResult.data.payment_url;
-
     } catch (error) {
-      console.error('Error during payment generation:', error);
-      toast.error('An unexpected error occurred during payment processing');
+      console.error('Error during course enrollment:', error);
+      toast.error('An unexpected error occurred during enrollment');
     } finally {
       setIsProcessing(false);
     }
@@ -261,7 +279,7 @@ const Checkout = () => {
                                       <FaLaptop className={`mb-3 ${selectedMode === 'online' ? 'text-primary' : 'text-muted'}`} size={32} />
                                       <h6>Online Mode</h6>
                                       <p className="text-muted mb-2">Learn from anywhere</p>
-                                      <h5 className="text-primary mb-0">₹{course.onlinePrice.toLocaleString()}</h5>
+                                      <h5 className="text-primary mb-0">₹{(course.onlinePrice || 0).toLocaleString()}</h5>
                                       <small className="text-muted">(incl. 18% GST)</small>
                                     </Card.Body>
                                   </Card>
@@ -277,7 +295,7 @@ const Checkout = () => {
                                       <FaBuilding className={`mb-3 ${selectedMode === 'offline' ? 'text-success' : 'text-muted'}`} size={32} />
                                       <h6>Offline Mode</h6>
                                       <p className="text-muted mb-2">Classroom experience</p>
-                                      <h5 className="text-success mb-0">₹{course.offlinePrice.toLocaleString()}</h5>
+                                      <h5 className="text-success mb-0">₹{(course.offlinePrice || 0).toLocaleString()}</h5>
                                       <small className="text-muted">(incl. 18% GST)</small>
                                     </Card.Body>
                                   </Card>
@@ -306,7 +324,7 @@ const Checkout = () => {
                                             <div>
                                               <strong>Full Payment</strong>
                                               <div className="text-muted small">Pay complete amount</div>
-                                              <div className="text-primary fw-bold">₹{totalPrice.toLocaleString()}</div>
+                                              <div className="text-primary fw-bold">₹{(totalPrice || 0).toLocaleString()}</div>
                                             </div>
                                           }
                                         />
@@ -330,7 +348,7 @@ const Checkout = () => {
                                             <div>
                                               <strong>EMI Payment</strong>
                                               <div className="text-muted small">Pay in installments</div>
-                                              <div className="text-warning fw-bold">₹{emiAmount.toLocaleString()}/month</div>
+                                              <div className="text-warning fw-bold">₹{(emiAmount || 0).toLocaleString()}/month</div>
                                             </div>
                                           }
                                         />
@@ -352,9 +370,9 @@ const Checkout = () => {
                                       value={emiMonths}
                                       onChange={(e) => setEmiMonths(parseInt(e.target.value))}
                                     >
-                                      <option value={3}>3 months - ₹{Math.ceil(totalPrice / 3).toLocaleString()}/month</option>
-                                      <option value={6}>6 months - ₹{Math.ceil(totalPrice / 6).toLocaleString()}/month</option>
-                                      <option value={12}>12 months - ₹{Math.ceil(totalPrice / 12).toLocaleString()}/month</option>
+                                      <option value={3}>3 months - ₹{Math.ceil((totalPrice || 0) / 3).toLocaleString()}/month</option>
+                                      <option value={6}>6 months - ₹{Math.ceil((totalPrice || 0) / 6).toLocaleString()}/month</option>
+                                      <option value={12}>12 months - ₹{Math.ceil((totalPrice || 0) / 12).toLocaleString()}/month</option>
                                     </Form.Select>
                                   </Form.Group>
                                 </motion.div>
@@ -378,15 +396,15 @@ const Checkout = () => {
                             <div className="mb-3">
                               <div className="d-flex justify-content-between mb-2">
                                 <span>Course Fee (incl. GST):</span>
-                                <span>₹{totalPrice.toLocaleString()}</span>
+                                <span>₹{(totalPrice || 0).toLocaleString()}</span>
                               </div>
                               <div className="d-flex justify-content-between mb-2 text-muted small">
                                 <span>  - Base Fee:</span>
-                                <span>₹{basePrice.toLocaleString()}</span>
+                                <span>₹{(basePrice || 0).toLocaleString()}</span>
                               </div>
                               <div className="d-flex justify-content-between mb-2 text-muted small">
                                 <span>  - GST (18%):</span>
-                                <span>₹{gstAmount.toLocaleString()}</span>
+                                <span>₹{(gstAmount || 0).toLocaleString()}</span>
                               </div>
                               <div className="d-flex justify-content-between mb-2">
                                 <span>Mode:</span>
@@ -399,7 +417,7 @@ const Checkout = () => {
                               {paymentType === 'emi' && (
                                 <div className="d-flex justify-content-between mb-2">
                                   <span>EMI Amount:</span>
-                                  <span>₹{emiAmount.toLocaleString()}/month</span>
+                                  <span>₹{(emiAmount || 0).toLocaleString()}/month</span>
                                 </div>
                               )}
                             </div>
@@ -408,7 +426,7 @@ const Checkout = () => {
 
                             <div className="d-flex justify-content-between mb-4">
                               <strong>Total Amount:</strong>
-                              <strong className="text-primary">₹{totalPrice.toLocaleString()}</strong>
+                              <strong className="text-primary">₹{(totalPrice || 0).toLocaleString()}</strong>
                             </div>
 
                             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
@@ -463,7 +481,7 @@ const Checkout = () => {
                           <h3 className="mb-3">Confirm Your Purchase</h3>
                           <p className="text-muted mb-4">
                             You are about to enroll in <strong>{course.title}</strong> for{' '}
-                            <strong className="text-primary">₹{totalPrice.toLocaleString()}</strong> (including GST)
+                            <strong className="text-primary">₹{(totalPrice || 0).toLocaleString()}</strong> (including GST)
                           </p>
 
                           <div className="bg-light rounded p-3 mb-4">
@@ -481,20 +499,20 @@ const Checkout = () => {
                             </div>
                             <div className="d-flex justify-content-between mb-2">
                               <span>Course Fee (incl. GST):</span>
-                              <span>₹{totalPrice.toLocaleString()}</span>
+                              <span>₹{(totalPrice || 0).toLocaleString()}</span>
                             </div>
                             <div className="d-flex justify-content-between mb-1 text-muted small">
                               <span>  - Base Fee:</span>
-                              <span>₹{basePrice.toLocaleString()}</span>
+                              <span>₹{(basePrice || 0).toLocaleString()}</span>
                             </div>
                             <div className="d-flex justify-content-between mb-2 text-muted small">
                               <span>  - GST (18%):</span>
-                              <span>₹{gstAmount.toLocaleString()}</span>
+                              <span>₹{(gstAmount || 0).toLocaleString()}</span>
                             </div>
                             <hr className="my-2" />
                             <div className="d-flex justify-content-between">
                               <strong>Total Amount:</strong>
-                              <strong className="text-primary">₹{totalPrice.toLocaleString()}</strong>
+                              <strong className="text-primary">₹{(totalPrice || 0).toLocaleString()}</strong>
                             </div>
                           </div>
 

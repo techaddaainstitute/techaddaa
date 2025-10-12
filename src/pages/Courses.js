@@ -3,11 +3,11 @@ import { Container, Row, Col, Card, Button, Badge, Form, InputGroup, Nav } from 
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FaStar, FaUsers, FaClock, FaSearch, FaFilter, FaLaptop, FaBuilding, FaArrowRight, FaPlay, FaBookOpen, FaCertificate, FaGraduationCap } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext';
+import { useCourse } from '../context/CourseContext';
 import CourseUsecase from '../lib/usecase/CourseUsecase';
 
 const Courses = () => {
-  const { mockCourses } = useAuth();
+  const { mockCourses } = useCourse();
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filteredCourses, setFilteredCourses] = useState([]);
@@ -543,7 +543,7 @@ const Courses = () => {
                                       <FaLaptop className="text-primary me-1" size={14} />
                                       <small className="text-muted fw-semibold">Online</small>
                                     </div>
-                                    <div className="fw-bold text-primary">₹{course.onlinePrice.toLocaleString()}</div>
+                                    <div className="fw-bold text-primary">₹{(course.onlinePrice || 0).toLocaleString()}</div>
                                   </div>
                                 </div>
                                 <div className="col-6">
@@ -552,7 +552,7 @@ const Courses = () => {
                                       <FaBuilding className="text-success me-1" size={14} />
                                       <small className="text-muted fw-semibold">Offline</small>
                                     </div>
-                                    <div className="fw-bold text-success">₹{course.offlinePrice.toLocaleString()}</div>
+                                    <div className="fw-bold text-success">₹{(course.offlinePrice || 0).toLocaleString()}</div>
                                   </div>
                                 </div>
                               </div>

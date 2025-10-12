@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-
+import { StudentAuthDataSource } from './StudentAuthDatasource';
 /**
  * StudentDatasource
  * Handles all student-related data operations with Supabase
@@ -18,7 +18,7 @@ export class StudentDatasource {
         .select('*')
         .eq('id', userId)
         .eq('role', 'student')
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return { data, error: null };
@@ -33,12 +33,14 @@ export class StudentDatasource {
    */
   static async updateStudentProfile(userId, updates) {
     try {
+      const updateData = {
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+
       const { data, error } = await supabase
         .from('user_profiles')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', userId)
         .eq('role', 'student')
         .select()
@@ -111,12 +113,186 @@ export class StudentDatasource {
         `)
         .eq('user_id', userId)
         .eq('course_id', courseId)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return { data, error: null };
     } catch (error) {
       console.error('Error fetching enrollment details:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * Create fee records based on payment type
+   */
+  static async createFeeRecords(userId, courseId, enrollmentId, courseData, enrollmentData, firstPaid = false) {
+    try {
+      const paymentType = enrollmentData.payment_type || 'full';
+      const totalAmount = enrollmentData.price_paid || courseData.price || 0;
+      const courseName = courseData.title;
+      const courseMode = enrollmentData.enrollment_mode || 'online';
+
+      const feeRecords = [];
+
+      if (paymentType === 'emi') {
+        // For EMI, divide the amount into monthly installments
+        // Default to 6 months if not specified, but allow customization
+        const emiMonths = enrollmentData.emi_months || 6;
+        const installmentAmount = Math.ceil(totalAmount / emiMonths);
+
+        for (let i = 1; i <= emiMonths; i++) {
+          const dueDate = new Date();
+          dueDate.setMonth(dueDate.getMonth() + i - 1); // First installment due immediately
+
+          feeRecords.push({
+            user_id: userId,
+            course_id: courseId,
+            enrollment_id: enrollmentId,
+            total_amount: totalAmount,
+            installment_amount: installmentAmount,
+            installment_number: i,
+            total_installments: emiMonths,
+            status: i === 1 && firstPaid ? 'paid' : 'pending',
+            payment_type: 'emi',
+            due_date: dueDate.toISOString().split('T')[0],
+            course_name: courseName,
+            course_mode: courseMode,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        }
+      } else {
+        // For full payment, create a single fee record
+        const dueDate = new Date();
+
+        feeRecords.push({
+          user_id: userId,
+          course_id: courseId,
+          enrollment_id: enrollmentId,
+          total_amount: totalAmount,
+          installment_amount: totalAmount,
+          installment_number: 1,
+          total_installments: 1,
+          status: firstPaid ? 'paid' : 'pending',
+          payment_type: 'full',
+          due_date: dueDate.toISOString().split('T')[0],
+          course_name: courseName,
+          course_mode: courseMode,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      // Insert all fee records
+      const { data, error } = await supabase
+        .from('fees')
+        .insert(feeRecords)
+        .select();
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error creating fee records:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
+   * Enroll a student in a course
+   */
+  static async enrollCourse(userId, courseId, enrollmentData = {}, firstPaid = false) {
+    try {
+      userId = userId || StudentAuthDataSource.getUserFromStorage().id;
+      // Check if user is already enrolled in this course
+      const { data: existingEnrollment, error: checkError } = await supabase
+        .from('course_enrollments')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('course_id', courseId)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingEnrollment) {
+        return {
+          data: null,
+          error: { message: 'You are already enrolled in this course' }
+        };
+      }
+
+      // Get course details to set price_paid
+      const { data: courseData, error: courseError } = await supabase
+        .from('courses')
+        .select('price, title, duration')
+        .eq('id', courseId)
+        .single();
+
+      if (courseError) throw courseError;
+
+      const enrollmentRecord = {
+        user_id: userId,
+        course_id: courseId,
+        enrollment_mode: enrollmentData.enrollment_mode || 'online',
+        price_paid: enrollmentData.price_paid || courseData.price || 0,
+        enrollment_date: new Date().toISOString(),
+        progress: 0,
+        progress_percentage: 0,
+        completed_lessons: 0,
+        status: 'active',
+        updated_at: new Date().toISOString()
+      };
+
+      // Create the enrollment record first
+      const { data: enrollmentResult, error: enrollmentError } = await supabase
+        .from('course_enrollments')
+        .insert(enrollmentRecord)
+        .select(`
+          *,
+          courses (
+            id,
+            title,
+            description,
+            price,
+            duration,
+            level,
+            category,
+            image_url,
+            instructor_id,
+            user_profiles!courses_instructor_id_fkey (
+              full_name
+            )
+          )
+        `)
+        .single();
+
+      if (enrollmentError) throw enrollmentError;
+
+      // Create fee records based on payment type
+      const feeResult = await this.createFeeRecords(
+        userId,
+        courseId,
+        enrollmentResult.id,
+        courseData,
+        enrollmentData,
+        firstPaid
+      );
+
+      if (feeResult.error) {
+        console.error('Error creating fee records:', feeResult.error);
+        // Note: We don't fail the enrollment if fee creation fails
+        // but we log the error for debugging
+      }
+
+      return {
+        data: {
+          ...enrollmentResult,
+          fees: feeResult.data || []
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error('Error enrolling in course:', error);
       return { data: null, error };
     }
   }
@@ -188,7 +364,7 @@ export class StudentDatasource {
         .eq('user_id', userId)
         .eq('course_id', courseId)
         .eq('is_valid', true)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return { data, error: null };
@@ -255,7 +431,7 @@ export class StudentDatasource {
 
       // Calculate average progress
       const activeEnrollments = enrollments?.filter(e => e.status === 'active') || [];
-      const averageProgress = activeEnrollments.length > 0 
+      const averageProgress = activeEnrollments.length > 0
         ? activeEnrollments.reduce((sum, e) => sum + (e.progress_percentage || e.progress || 0), 0) / activeEnrollments.length
         : 0;
 
@@ -330,51 +506,74 @@ export class StudentDatasource {
    */
   static async getFeesData(userId) {
     try {
-      const { data: enrollments, error } = await supabase
-        .from('course_enrollments')
-        .select(`
-          *,
-          courses (
-            title,
-            price
-          )
-        `)
+      // Fetch all fee records for the user
+      const { data: fees, error } = await supabase
+        .from('fees')
+        .select('*')
         .eq('user_id', userId)
-        .eq('enrollment_mode', 'offline'); // Only offline courses have installment fees
+        .order('due_date', { ascending: true });
 
       if (error) throw error;
 
-      if (!enrollments || enrollments.length === 0) {
+      if (!fees || fees.length === 0) {
         return {
           data: {
-            totalFees: 0,
-            paidAmount: 0,
-            pendingAmount: 0,
-            installments: [],
-            hasOfflineCourses: false
+            fees: [],
+            summary: {
+              total_amount: 0,
+              paid_amount: 0,
+              pending_amount: 0,
+              total_installments: 0,
+              paid_installments: 0,
+              pending_installments: 0
+            }
           },
           error: null
         };
       }
 
-      // Calculate total fees from offline enrollments
-      const totalFees = enrollments.reduce((sum, enrollment) => sum + (enrollment.price_paid || 0), 0);
-      
-      // For demo purposes, assume 60% is paid and 40% is pending
-      const paidAmount = Math.floor(totalFees * 0.6);
-      const pendingAmount = totalFees - paidAmount;
+      // Calculate summary statistics
+      const totalAmount = fees.reduce((sum, fee) => sum + (fee.installment_amount || 0), 0);
+      const paidAmount = fees
+        .filter(fee => fee.status === 'paid')
+        .reduce((sum, fee) => sum + (fee.installment_amount || 0), 0);
+      const pendingAmount = totalAmount - paidAmount;
 
-      // Generate mock installments
-      const installments = this.generateMockInstallments(totalFees, paidAmount);
+      const totalInstallments = fees.length;
+      const paidInstallments = fees.filter(fee => fee.status === 'paid').length;
+      const pendingInstallments = totalInstallments - paidInstallments;
+
+      // Transform fees data for frontend consumption
+      const transformedFees = fees.map(fee => ({
+        id: fee.id,
+        course_title: fee.course_name,
+        mode: fee.course_mode,
+        installment_number: fee.installment_number,
+        total_installments: fee.total_installments,
+        amount: fee.installment_amount,
+        total_amount: fee.total_amount,
+        due_date: fee.due_date,
+        paid_date: fee.paid_date,
+        status: fee.status,
+        payment_type: fee.payment_type,
+        payment_method: fee.payment_method,
+        transaction_id: fee.transaction_id,
+        notes: fee.notes,
+        created_at: fee.created_at,
+        updated_at: fee.updated_at
+      }));
 
       return {
         data: {
-          totalFees,
-          paidAmount,
-          pendingAmount,
-          installments,
-          hasOfflineCourses: true,
-          enrollments
+          fees: transformedFees,
+          summary: {
+            total_amount: totalAmount,
+            paid_amount: paidAmount,
+            pending_amount: pendingAmount,
+            total_installments: totalInstallments,
+            paid_installments: paidInstallments,
+            pending_installments: pendingInstallments
+          }
         },
         error: null
       };
@@ -387,27 +586,6 @@ export class StudentDatasource {
   /**
    * Generate mock installments for demo purposes
    */
-  static generateMockInstallments(totalFees, paidAmount) {
-    const installmentAmount = Math.floor(totalFees / 5); // 5 installments
-    const installments = [];
-    
-    for (let i = 1; i <= 5; i++) {
-      const dueDate = new Date();
-      dueDate.setMonth(dueDate.getMonth() + i - 1);
-      
-      const isPaid = (i * installmentAmount) <= paidAmount;
-      
-      installments.push({
-        id: i,
-        amount: installmentAmount,
-        dueDate: dueDate.toISOString().split('T')[0],
-        status: isPaid ? 'paid' : 'pending',
-        paidDate: isPaid ? new Date(dueDate.getTime() - 86400000 * 2).toISOString().split('T')[0] : null
-      });
-    }
-
-    return installments;
-  }
 
   // ==================== UTILITY METHODS ====================
 
@@ -436,7 +614,7 @@ export class StudentDatasource {
    */
   static getNextDueInstallment(installments) {
     if (!installments || installments.length === 0) return null;
-    
+
     return installments
       .filter(inst => inst.status === 'pending')
       .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0] || null;
