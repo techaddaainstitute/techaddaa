@@ -98,7 +98,7 @@ const Checkout = () => {
 
       // Initiate payment
       const paymentResult = await initiatePayment({
-        amount: totalCourseAmount,
+        amount: enrollmentData.payment_type === 'full' ? totalCourseAmount : totalCourseAmount / emiMonths,
         currency: 'INR',
         purpose: `Course Enrollment: ${course.title} (ID${course.id})`,
         name: user.full_name,
@@ -435,8 +435,8 @@ const Checkout = () => {
                                 size="lg"
                                 className="w-100 py-3"
                                 onClick={() => setCurrentStep(2)}
-                              >
-                                Proceed to Payment
+                              >{paymentType === 'full' ? 'Proceed to Payment' : `Pay ₹${Math.ceil((totalPrice || 0) / emiMonths).toLocaleString()}/month`}
+
                               </Button>
                             </motion.div>
 
@@ -510,10 +510,23 @@ const Checkout = () => {
                               <span>₹{(gstAmount || 0).toLocaleString()}</span>
                             </div>
                             <hr className="my-2" />
-                            <div className="d-flex justify-content-between">
-                              <strong>Total Amount:</strong>
-                              <strong className="text-primary">₹{(totalPrice || 0).toLocaleString()}</strong>
-                            </div>
+                            {
+                              paymentType === 'emi' ? (<>
+                                <div className="d-flex justify-content-between mb-2">
+                                  <span>EMI Installments:</span>
+                                  <span>{emiMonths} months</span>
+                                </div>
+                                <div className="d-flex justify-content-between">
+                                  <strong>EMI Amount:</strong>
+                                  <strong className="text-primary">₹{(Math.ceil((totalPrice || 0) / emiMonths)).toLocaleString()}</strong>
+                                </div>
+                              </>
+                              ) : <div className="d-flex justify-content-between">
+                                <strong>Total Amount:</strong>
+                                <strong className="text-primary">₹{(totalPrice || 0).toLocaleString()}</strong>
+                              </div>
+                            }
+
                           </div>
 
                           <div className="d-grid gap-2">

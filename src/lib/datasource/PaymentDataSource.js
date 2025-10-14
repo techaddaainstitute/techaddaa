@@ -51,8 +51,7 @@ class PaymentDataSource {
       console.log("Functions URL:", FUNCTIONS_BASE);
 
       const requestBody = {
-        amount: 10,
-        // amount: paymentData.amount,
+        amount: Math.ceil(paymentData.amount),
         name: paymentData.name,
         email: paymentData.email,
         phone: paymentData.phone,

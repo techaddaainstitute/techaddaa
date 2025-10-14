@@ -62,48 +62,29 @@ export const PaymentProvider = ({ children }) => {
       console.log('Instamojo payment request created:', instamojoPayment);
 
       // Simulate opening payment gateway (in real implementation, this would redirect to Instamojo)
-      const shouldSimulateSuccess = window.confirm(
-        `Instamojo Payment Gateway\n\nAmount: ₹${paymentDetails.amount}\nName: ${paymentDetails.name}\nEmail: ${paymentDetails.email}\nPhone: ${paymentDetails.phone}\n\nClick OK to simulate successful payment, Cancel to simulate failure.`
-      );
+      const result = await PaymentDataSource.processPayment({
+        ...paymentDetails,
+        payment_request_id: instamojoPayment.payment_request.id,
+        redirect_url: `${window.location.origin}/payment-check`
+      });
 
-      if (shouldSimulateSuccess) {
-        // Process payment through datasource
-        const result = await PaymentDataSource.processPayment({
-          ...paymentDetails,
-          payment_request_id: instamojoPayment.payment_request.id,
-          redirect_url: `${window.location.origin}/payment-check`
-        });
-
-        if (result.success) {
-          // Update state to success
-          setPaymentState(prev => ({
-            ...prev,
-            status: Status.SUCCESS,
-            paymentData: result.data,
-            loading: false,
-            error: null
-          }));
-
-          console.log('Payment successful:', result.data);
-
-          return result;
-        } else {
-          throw new Error(result.error || 'Payment processing failed');
-        }
-      } else {
-        // User cancelled payment
+      if (result.success) {
+        // Update state to success
         setPaymentState(prev => ({
           ...prev,
-          status: Status.ERROR,
+          status: Status.SUCCESS,
+          paymentData: result.data,
           loading: false,
-          error: 'Payment cancelled by user'
+          error: null
         }));
 
-        return {
-          success: false,
-          error: 'Payment cancelled by user'
-        };
+        console.log('Payment successful:', result.data);
+
+        return result;
+      } else {
+        throw new Error(result.error || 'Payment processing failed');
       }
+
 
     } catch (error) {
       console.error('Payment initiation error:', error);
