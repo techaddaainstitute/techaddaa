@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { usePayment } from "../context/PaymentContext";
 import { useStudentDashboard } from "../context/StudentDashboardContext";
+import { FeesUsecase } from "../lib/usecase/FeesUsecase";
 import { toast } from 'react-toastify';
 import { Loading } from "../widgets/Loading"; // keep if you have it
 
@@ -72,6 +73,7 @@ const PaymentCheck = () => {
             // Handle course enrollment after successful payment
             try {
               const pendingEnrollment = localStorage.getItem('pendingEnrollment');
+              const pendingPayment = localStorage.getItem('pendingPayment');
               if (pendingEnrollment) {
                 const enrollmentPayload = JSON.parse(pendingEnrollment);
                 console.log('Processing enrollment:', enrollmentPayload);
@@ -89,6 +91,37 @@ const PaymentCheck = () => {
                   } else {
                     console.error('Enrollment failed:', enrollmentResult.error);
                     setView({ status: "success", message: "Payment successful but enrollment failed. Please contact support." });
+                  }
+                } else {
+                  setView({ status: "success", message: "Payment successful" });
+                }
+              } else if (pendingPayment) {
+                const paymentPayload = JSON.parse(pendingPayment);
+                console.log('Processing fee payment:', paymentPayload);
+                
+                // Handle fee payment
+                if (paymentPayload.type === 'fee_payment') {
+                  try {
+                    const feePaymentResult = await FeesUsecase.markFeePaidUsecase(
+                      paymentPayload.fee_id,
+                      {
+                        method: 'online',
+                        transactionId: paymentId,
+                        gatewayResponse: verify.data
+                      }
+                    );
+
+                    if (feePaymentResult.success) {
+                      toast.success('Fee payment recorded successfully!');
+                      localStorage.removeItem('pendingPayment'); // Clean up
+                      setView({ status: "success", message: "Fee payment successful!" });
+                    } else {
+                      console.error('Fee payment recording failed:', feePaymentResult.error);
+                      setView({ status: "success", message: "Payment successful but fee recording failed. Please contact support." });
+                    }
+                  } catch (feeError) {
+                    console.error('Fee payment processing error:', feeError);
+                    setView({ status: "success", message: "Payment successful but fee recording failed. Please contact support." });
                   }
                 } else {
                   setView({ status: "success", message: "Payment successful" });
@@ -135,8 +168,24 @@ const PaymentCheck = () => {
   };
 
   const onProceed = () => {
-    // Clean up any remaining enrollment data and navigate to dashboard
+    // Check payment type before cleaning up
+    const pendingPayment = localStorage.getItem('pendingPayment');
+    let isFeePament = false;
+    
+    if (pendingPayment) {
+      try {
+        const paymentPayload = JSON.parse(pendingPayment);
+        isFeePament = paymentPayload.type === 'fee_payment';
+      } catch (error) {
+        console.error('Error parsing payment payload:', error);
+      }
+    }
+    
+    // Clean up any remaining payment data
     localStorage.removeItem('pendingEnrollment');
+    localStorage.removeItem('pendingPayment');
+    
+    // Navigate to dashboard (same for both fee payments and course enrollments)
     navigate("/dashboard");
   };
 

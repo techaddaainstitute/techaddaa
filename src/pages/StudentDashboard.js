@@ -9,14 +9,18 @@ import {
 } from 'react-icons/fa';
 import { useStudentAuth } from '../context/StudentAuthContext';
 import { useStudentDashboard } from '../context/StudentDashboardContext';
+import { usePayment } from '../context/PaymentContext';
 import { BlocConsumer, Status } from '../tool';
+import { toast } from 'react-toastify';
 
 const StudentDashboard = () => {
   const { state: authState, updateLocalProfile } = useStudentAuth();
   const { user } = authState;
   const { state, loadInit, updateProfile, profile } = useStudentDashboard();
+  const { initiatePayment } = usePayment();
   const [activeTab, setActiveTab] = useState('courses');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [editedProfile, setEditedProfile] = useState({
     full_name: '',
     email: '',
@@ -75,6 +79,54 @@ const StudentDashboard = () => {
     if (progress >= 90) return 'success';
     if (progress >= 50) return 'warning';
     return 'primary';
+  };
+
+  const handleFeePayment = async (fee) => {
+    if (!user) {
+      toast.info('Please login to make payment');
+      return;
+    }
+
+    setIsProcessingPayment(true);
+    try {
+      // Store fee payment data for post-payment processing
+      const paymentPayload = {
+        type: 'fee_payment',
+        fee_id: fee.id,
+        amount: fee.amount,
+        course_id: fee.course_id,
+        description: fee.description
+      };
+      localStorage.setItem('pendingPayment', JSON.stringify(paymentPayload));
+
+      // Initiate payment
+      const paymentResult = await initiatePayment({
+        amount: fee.amount,
+        currency: 'INR',
+        purpose: `Fee Payment: ${fee.description}`,
+        name: user.full_name,
+        email: user.email,
+        phone: user.phone_number,
+        redirect_url: `${window.location.origin}/payment-check`
+      });
+
+      if (paymentResult.success) {
+        // Payment initiated successfully, user will be redirected to payment gateway
+        console.log('Payment initiated successfully');
+        toast.success('Redirecting to payment gateway...');
+      } else {
+        // Remove payment data if payment initiation failed
+        localStorage.removeItem('pendingPayment');
+        toast.error('Payment initiation failed. Please try again.');
+      }
+
+    } catch (error) {
+      console.error('Error during fee payment:', error);
+      toast.error('An unexpected error occurred during payment');
+      localStorage.removeItem('pendingPayment');
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   // Safety check to ensure state is defined
@@ -298,10 +350,11 @@ const StudentDashboard = () => {
                                         <Button
                                           variant="primary"
                                           size="sm"
-                                          disabled={s?.markPaidStatus === Status.LOADING}
+                                          disabled={s?.markPaidStatus === Status.LOADING || isProcessingPayment}
+                                          onClick={() => handleFeePayment(fee)}
                                         >
                                           <FaMoneyBillWave className="me-1" />
-                                          Pay Now
+                                          {isProcessingPayment ? 'Processing...' : 'Pay Now'}
                                         </Button>
                                       ) : (
                                         <Badge bg="success">
@@ -476,7 +529,7 @@ const StudentDashboard = () => {
                                       type="tel"
                                       value={isEditingProfile ? editedProfile.phone_number : (s?.profile?.phone_number || '')}
                                       onChange={(e) => handleProfileChange('phone_number', e.target.value)}
-                                      disabled={!isEditingProfile}
+                                      disabled={true}
                                     />
                                   </div>
                                 </Form.Group>
