@@ -25,6 +25,9 @@ const StudentView = () => {
   const [showFeeModal, setShowFeeModal] = useState(false);
   const [selectedFee, setSelectedFee] = useState(null);
 
+  // Filter states
+  const [feeFilter, setFeeFilter] = useState('all');
+
   useEffect(() => {
     fetchStudentDetails();
   }, [studentId]);
@@ -148,6 +151,14 @@ const StudentView = () => {
       console.error('Error updating fee:', err);
       setError('An error occurred while updating fee');
     }
+  };
+
+  // Filter fees based on selected status
+  const getFilteredFees = () => {
+    if (feeFilter === 'all') {
+      return fees;
+    }
+    return fees.filter(fee => fee.status === feeFilter);
   };
 
   if (loading) {
@@ -433,7 +444,31 @@ const StudentView = () => {
             </Card.Header>
             <Card.Body>
               {fees.length > 0 ? (
-                <Table responsive hover>
+                <>
+                  {/* Filter Dropdown */}
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div className="d-flex align-items-center">
+                      <label htmlFor="feeFilter" className="form-label me-2 mb-0">
+                        Filter by Status:
+                      </label>
+                      <Form.Select
+                        id="feeFilter"
+                        value={feeFilter}
+                        onChange={(e) => setFeeFilter(e.target.value)}
+                        style={{ width: 'auto' }}
+                      >
+                        <option value="all">All ({fees.length})</option>
+                        <option value="paid">Paid ({fees.filter(f => f.status === 'paid').length})</option>
+                        <option value="pending">Pending ({fees.filter(f => f.status === 'pending').length})</option>
+                        <option value="overdue">Overdue ({fees.filter(f => f.status === 'overdue').length})</option>
+                      </Form.Select>
+                    </div>
+                    <small className="text-muted">
+                      Showing {getFilteredFees().length} of {fees.length} fees
+                    </small>
+                  </div>
+
+                  <Table responsive hover>
                   <thead>
                     <tr>
                       <th>Fee Type</th>
@@ -445,7 +480,7 @@ const StudentView = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {fees.map(fee => (
+                    {getFilteredFees().map(fee => (
                       <tr key={fee.id}>
                         <td>
                           <strong>{fee.payment_type || 'Course Fee'}</strong>
@@ -506,6 +541,7 @@ const StudentView = () => {
                     ))}
                   </tbody>
                 </Table>
+                </>
               ) : (
                 <div className="text-center text-muted py-4">
                   <FaRupeeSign size={40} className="mb-3" />

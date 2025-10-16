@@ -815,70 +815,254 @@ export class AdminDatasource {
    */
   static async addStudentWithEnrollment(studentData) {
     try {
-      // Generate a temporary password for the student
-      const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
-      
-      // First, create the auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      console.log('🔄 Starting student creation with data:', {
         email: studentData.email,
-        password: tempPassword,
-        email_confirm: true
+        full_name: studentData.full_name,
+        phone_number: studentData.phone_number,
+        course_id: studentData.course_id,
+        dob: studentData.dob,
+        payment_mode: studentData.payment_mode
       });
 
-      if (authError) {
-        throw new Error(`Auth user creation failed: ${authError.message}`);
+      // Map form fields to database fields
+      const mappedData = {
+        ...studentData,
+        date_of_birth: studentData.dob, // Map dob to date_of_birth
+        payment_type: studentData.payment_mode, // Map payment_mode to payment_type
+        price_paid: studentData.total_amount ? parseFloat(studentData.total_amount) : 0,
+        emi_months: studentData.installment_count || 6,
+        first_payment_made: false // Default to false, can be updated based on form logic
+      };
+
+      // Validate required fields
+      if (!mappedData.phone_number || mappedData.phone_number.trim() === '') {
+        throw new Error('Phone number is required and cannot be empty');
       }
 
-      // Then, create the user profile
+      // Check for existing users with same email or phone
+      console.log('🔍 Checking for existing users...');
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('user_profiles')
+        .select('email, phone_number')
+        .or(`email.eq.${mappedData.email},phone_number.eq.${mappedData.phone_number.trim()}`);
+
+      if (checkError) {
+        console.warn('⚠️ Could not check for existing users:', checkError);
+      } else if (existingUsers && existingUsers.length > 0) {
+        const existingUser = existingUsers[0];
+        if (existingUser.email === mappedData.email) {
+          throw new Error(`A user with email ${mappedData.email} already exists`);
+        }
+        if (existingUser.phone_number === mappedData.phone_number.trim()) {
+          throw new Error(`A user with phone number ${mappedData.phone_number} already exists`);
+        }
+      }
+
+      // Generate a UUID for the student (without auth signup)
+      const studentId = crypto.randomUUID();
+      console.log('🆔 Generated student ID:', studentId);
+      
+      // Create the user profile directly (bypassing auth system)
+      console.log('🔄 Attempting to create user profile directly...');
+      const profileData = {
+        id: studentId,
+        full_name: mappedData.full_name || '',
+        email: mappedData.email,
+        phone_number: mappedData.phone_number.trim(), // Ensure NOT NULL constraint is met
+        date_of_birth: mappedData.date_of_birth || null, // Include date_of_birth field
+        role: 'student',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      console.log('📝 Profile data to insert:', profileData);
+
       const { data: userData, error: userError } = await supabase
         .from('user_profiles')
-        .insert({
-          id: authData.user.id,
-          full_name: studentData.full_name,
-          email: studentData.email,
-          phone_number: studentData.phone,
-          role: 'student',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        .insert(profileData)
         .select()
         .single();
 
       if (userError) {
-        // If profile creation fails, we should delete the auth user
-        await supabase.auth.admin.deleteUser(authData.user.id);
-        throw new Error(`Profile creation failed: ${userError.message}`);
+        // Handle specific constraint violations
+        if (userError.message.includes('user_profiles_email_key')) {
+          throw new Error(`A user with email ${mappedData.email} already exists in the system`);
+        }
+        if (userError.message.includes('user_profiles_phone_number_key')) {
+          throw new Error(`A user with phone number ${mappedData.phone_number} already exists in the system`);
+        }
+        
+        // If insert fails, try to update (profile might already exist from trigger)
+        console.log('❌ Profile insert failed, trying update:', userError);
+        console.log('🔄 Attempting to update existing profile...');
+        
+        const updateData = {
+          full_name: mappedData.full_name || '',
+          phone_number: mappedData.phone_number.trim(), // Ensure NOT NULL constraint is met
+          date_of_birth: mappedData.date_of_birth || null, // Include date_of_birth field
+          role: 'student',
+          updated_at: new Date().toISOString()
+        };
+        console.log('📝 Profile update data:', updateData);
+
+        const { data: updatedData, error: updateError } = await supabase
+          .from('user_profiles')
+          .update(updateData)
+          .eq('id', studentId)
+          .select()
+          .single();
+
+        if (updateError) {
+          console.error('❌ Both profile insert and update failed:', {
+            insertError: userError,
+            updateError: updateError
+          });
+          throw new Error(`Profile creation failed: ${updateError.message}`);
+        }
+        
+        console.log('✅ Profile updated successfully:', updatedData);
+        userData = updatedData;
+      } else {
+        console.log('✅ Profile created successfully:', userData);
       }
 
       // If course_id is provided, create enrollment
-      if (studentData.course_id) {
-        const { error: enrollmentError } = await supabase
+      if (mappedData.course_id) {
+        console.log('🔄 Attempting to create course enrollment...');
+        const enrollmentData = {
+          user_id: userData.id,
+          course_id: mappedData.course_id,
+          status: 'active',
+          progress: 0,
+          enrollment_date: new Date().toISOString(),
+          enrollment_mode: mappedData.enrollment_mode || 'online',
+          price_paid: mappedData.price_paid || 0
+        };
+        console.log('📝 Enrollment data:', enrollmentData);
+
+        const { data: enrollmentResult, error: enrollmentError } = await supabase
           .from('course_enrollments')
-          .insert({
-            user_id: userData.id,
-            course_id: studentData.course_id,
-            status: 'active',
-            progress: 0,
-            enrollment_date: new Date().toISOString(),
-            enrollment_mode: studentData.enrollment_mode || 'online'
-          });
+          .insert(enrollmentData)
+          .select()
+          .single();
 
         if (enrollmentError) {
-          // If enrollment fails, rollback user creation
-          await supabase.auth.admin.deleteUser(authData.user.id);
+          // If enrollment fails, log the error but don't rollback user creation
+          // The user account will exist but without enrollment
           console.error('❌ Enrollment creation failed:', enrollmentError);
           throw new Error(`Student created but enrollment failed: ${enrollmentError.message}`);
         }
+        
+        console.log('✅ Enrollment created successfully');
+
+        // Create fee records for the enrollment
+        if (enrollmentResult && (mappedData.price_paid > 0 || mappedData.payment_type)) {
+          console.log('🔄 Attempting to create fee records...');
+          
+          // Get course data for fee creation
+          const { data: courseData, error: courseError } = await supabase
+            .from('courses')
+            .select('id, title, price')
+            .eq('id', mappedData.course_id)
+            .single();
+
+          if (courseError) {
+            console.warn('⚠️ Could not fetch course data for fee creation:', courseError);
+          } else {
+            try {
+              const paymentType = mappedData.payment_type || 'full';
+              const totalAmount = mappedData.price_paid || courseData.price || 0;
+              const courseName = courseData.title;
+              const courseMode = mappedData.enrollment_mode || 'online';
+              const emiMonths = mappedData.emi_months || 6;
+
+              const feeRecords = [];
+
+              if (paymentType === 'emi') {
+                // Create multiple entries for EMI
+                const installmentAmount = Math.ceil(totalAmount / emiMonths);
+                
+                for (let i = 1; i <= emiMonths; i++) {
+                  const dueDate = new Date();
+                  dueDate.setMonth(dueDate.getMonth() + i - 1);
+                  
+                  const isFirstInstallment = i === 1;
+                  
+                  feeRecords.push({
+                    user_id: userData.id,
+                    course_id: mappedData.course_id,
+                    enrollment_id: enrollmentResult.id,
+                    total_amount: totalAmount,
+                    installment_amount: installmentAmount,
+                    installment_number: i,
+                    total_installments: emiMonths,
+                    status: isFirstInstallment && mappedData.first_payment_made ? 'paid' : 'pending',
+                    payment_type: 'emi',
+                    due_date: dueDate.toISOString().split('T')[0],
+                    paid_date: isFirstInstallment && mappedData.first_payment_made ? new Date().toISOString() : null,
+                    course_name: courseName,
+                    course_mode: courseMode,
+                    payment_method: isFirstInstallment && mappedData.first_payment_made ? 'online' : null,
+                    notes: isFirstInstallment ? 'First EMI payment on enrollment' : `EMI ${i} of ${emiMonths}`,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  });
+                }
+              } else {
+                // Create single entry for full payment
+                feeRecords.push({
+                  user_id: userData.id,
+                  course_id: mappedData.course_id,
+                  enrollment_id: enrollmentResult.id,
+                  total_amount: totalAmount,
+                  installment_amount: totalAmount,
+                  installment_number: 1,
+                  total_installments: 1,
+                  status: mappedData.first_payment_made ? 'paid' : 'pending',
+                  payment_type: 'full',
+                  due_date: new Date().toISOString().split('T')[0],
+                  paid_date: mappedData.first_payment_made ? new Date().toISOString() : null,
+                  course_name: courseName,
+                  course_mode: courseMode,
+                  payment_method: mappedData.first_payment_made ? 'online' : null,
+                  notes: mappedData.first_payment_made ? 'Full payment on enrollment' : 'Payment pending',
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                });
+              }
+
+              const { error: feeError } = await supabase
+                .from('fees')
+                .insert(feeRecords);
+
+              if (feeError) {
+                console.error('❌ Fee creation failed:', feeError);
+                // Don't throw error for fee creation failure, just log it
+                console.warn('⚠️ Student and enrollment created successfully, but fee records failed');
+              } else {
+                console.log('✅ Fee records created successfully');
+              }
+            } catch (feeCreationError) {
+              console.error('❌ Error during fee creation:', feeCreationError);
+              console.warn('⚠️ Student and enrollment created successfully, but fee records failed');
+            }
+          }
+        }
       }
 
+      console.log('🎉 Student creation completed successfully!');
       return { 
         success: true, 
         student: userData,
-        tempPassword: tempPassword // Return temp password for admin to share with student
+        message: 'Student created successfully without authentication credentials'
       };
 
     } catch (error) {
       console.error('❌ AdminDatasource add student error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       throw error;
     }
   }
@@ -1129,7 +1313,7 @@ export class AdminDatasource {
       const { data, error } = await supabase
         .from('fees')
         .update({
-          payment_status: 'paid',
+          status: 'paid',
           paid_date: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
