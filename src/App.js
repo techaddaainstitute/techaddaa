@@ -24,6 +24,7 @@ import RefundPolicy from './pages/RefundPolicy';
 import AdminLogin from './pages/admin/Login';
 import AdminDashboardNew from './pages/admin/AdminDashboard';
 import AdminChangePassword from './pages/admin/AdminChangePassword';
+import StudentView from './pages/admin/StudentView';
 
 
 // Context
@@ -88,6 +89,7 @@ function AppContent() {
           />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboardNew />} />
+          <Route path="/admin/student/:studentId" element={<StudentView />} />
           <Route path="/admin/change-password" element={<AdminChangePassword />} />
           <Route
             path="/admin"

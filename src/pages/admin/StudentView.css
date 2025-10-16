@@ -1,0 +1,312 @@
+.student-view-container {
+  padding: 20px;
+  background-color: #f8f9fa;
+  min-height: 100vh;
+}
+
+.student-profile-card {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border: none;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.student-profile-card .card-header {
+  border-bottom: none;
+  padding: 20px;
+}
+
+.student-profile-card .card-body {
+  padding: 30px 20px;
+}
+
+.student-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  color: white;
+}
+
+.student-details {
+  margin-top: 20px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #007bff;
+}
+
+.detail-icon {
+  color: #007bff;
+  margin-right: 15px;
+  margin-top: 5px;
+  font-size: 16px;
+  min-width: 20px;
+}
+
+.detail-content {
+  flex: 1;
+}
+
+.detail-content label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+  display: block;
+}
+
+.detail-content span {
+  color: #212529;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.detail-content .form-control,
+.detail-content .form-select {
+  font-size: 14px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.detail-content .form-control:focus,
+.detail-content .form-select:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Course Enrollments and Fees Cards */
+.card {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: none;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.card-header {
+  border-bottom: none;
+  padding: 20px;
+  font-weight: 600;
+}
+
+.card-body {
+  padding: 20px;
+}
+
+/* Table Styling */
+.table {
+  margin-bottom: 0;
+}
+
+.table th {
+  border-top: none;
+  border-bottom: 2px solid #dee2e6;
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 15px 12px;
+}
+
+.table td {
+  border-top: 1px solid #f1f3f4;
+  padding: 15px 12px;
+  vertical-align: middle;
+}
+
+.table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+/* Progress Bar */
+.progress-container {
+  min-width: 100px;
+}
+
+.progress {
+  background-color: #e9ecef;
+  border-radius: 10px;
+  margin-bottom: 5px;
+}
+
+.progress-bar {
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+/* Badges */
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Buttons */
+.btn {
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 8px 16px;
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+/* Empty State */
+.text-center.text-muted {
+  padding: 40px 20px;
+}
+
+.text-center.text-muted svg {
+  opacity: 0.5;
+}
+
+/* Modal Styling */
+.modal-content {
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  border-bottom: 1px solid #f1f3f4;
+  padding: 20px 30px;
+}
+
+.modal-body {
+  padding: 30px;
+}
+
+.modal-footer {
+  border-top: 1px solid #f1f3f4;
+  padding: 20px 30px;
+}
+
+/* Form Controls in Modal */
+.modal .form-control,
+.modal .form-select {
+  border: 1px solid #ced4da;
+  border-radius: 8px;
+  padding: 12px 15px;
+  font-size: 14px;
+}
+
+.modal .form-control:focus,
+.modal .form-select:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.modal .form-label {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .student-view-container {
+    padding: 15px;
+  }
+  
+  .detail-item {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .detail-icon {
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+  
+  .table-responsive {
+    font-size: 14px;
+  }
+  
+  .btn {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  
+  .btn:last-child {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 576px) {
+  .card-header h5 {
+    font-size: 16px;
+  }
+  
+  .student-profile-card .card-body {
+    padding: 20px 15px;
+  }
+  
+  .detail-item {
+    padding: 12px;
+    margin-bottom: 15px;
+  }
+  
+  .table th,
+  .table td {
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  animation: fadeIn 0.5s ease-out;
+}
+
+/* Loading State */
+.spinner-border {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* Alert Styling */
+.alert {
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.alert-dismissible .btn-close {
+  padding: 0.75rem 1rem;
+}

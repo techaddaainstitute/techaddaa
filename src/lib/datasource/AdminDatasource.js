@@ -924,9 +924,10 @@ export class AdminDatasource {
       const { data, error } = await supabase
         .from('user_profiles')
         .update({
-          full_name: studentData.full_name,
+          full_name: studentData.full_name || studentData.name,
           email: studentData.email,
-          phone_number: studentData.phone,
+          phone_number: studentData.phone || studentData.phone_number,
+          date_of_birth: studentData.date_of_birth,
           updated_at: new Date().toISOString()
         })
         .eq('id', studentId)
@@ -976,6 +977,226 @@ export class AdminDatasource {
     } catch (error) {
       console.error('❌ AdminDatasource update course error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get detailed student information
+   */
+  static async getStudentDetails(studentId) {
+    try {
+      console.log('📊 AdminDatasource: Fetching student details for ID:', studentId);
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', studentId)
+        .single();
+
+      if (error) {
+        console.error('❌ Error fetching student details:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data) {
+        return { success: false, error: 'Student not found' };
+      }
+
+      console.log('✅ Student details fetched successfully');
+      return { success: true, student: data };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource get student details error:', error);
+      return { success: false, error: 'Failed to fetch student details' };
+    }
+  }
+
+  /**
+   * Get student course enrollments
+   */
+  static async getStudentEnrollments(studentId) {
+    try {
+      console.log('📚 AdminDatasource: Fetching enrollments for student ID:', studentId);
+
+      const { data, error } = await supabase
+        .from('course_enrollments')
+        .select(`
+          *,
+          courses (
+            id,
+            title,
+            description,
+            duration,
+            price
+          )
+        `)
+        .eq('user_id', studentId)
+        .order('enrollment_date', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching student enrollments:', error);
+        return { success: false, error: error.message };
+      }
+
+      // Transform the data to include course details
+      const enrollments = data.map(enrollment => ({
+        ...enrollment,
+        course_title: enrollment.courses?.title || 'Unknown Course',
+        course_description: enrollment.courses?.description || '',
+        course_duration: enrollment.courses?.duration || '',
+        course_price: enrollment.courses?.price || 0,
+        created_at: enrollment.enrollment_date,
+        is_active: enrollment.status === 'active'
+      }));
+
+      console.log('✅ Student enrollments fetched successfully');
+      return { success: true, enrollments };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource get student enrollments error:', error);
+      return { success: false, error: 'Failed to fetch student enrollments' };
+    }
+  }
+
+  /**
+   * Get student fees information
+   */
+  static async getStudentFees(studentId) {
+    try {
+      console.log('💰 AdminDatasource: Fetching fees for student ID:', studentId);
+
+      const { data, error } = await supabase
+        .from('fees')
+        .select('*')
+        .eq('user_id', studentId)
+        .order('due_date', { ascending: true });
+
+      if (error) {
+        console.error('❌ Error fetching student fees:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('✅ Student fees fetched successfully');
+      return { success: true, fees: data || [] };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource get student fees error:', error);
+      return { success: false, error: 'Failed to fetch student fees' };
+    }
+  }
+
+  /**
+   * Update student details
+   */
+  static async updateStudentDetails(studentId, studentData) {
+    try {
+      console.log('✏️ AdminDatasource: Updating student details for ID:', studentId);
+
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .update({
+          full_name: studentData.full_name || studentData.name,
+          email: studentData.email,
+          phone_number: studentData.phone || studentData.phone_number,
+          date_of_birth: studentData.date_of_birth,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', studentId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error updating student details:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('✅ Student details updated successfully');
+      return { success: true, student: data };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource update student details error:', error);
+      return { success: false, error: 'Failed to update student details' };
+    }
+  }
+
+  /**
+   * Mark fee as paid
+   */
+  static async markFeeAsPaid(feeId) {
+    try {
+      console.log('💳 AdminDatasource: Marking fee as paid for ID:', feeId);
+
+      const { data, error } = await supabase
+        .from('fees')
+        .update({
+          payment_status: 'paid',
+          paid_date: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', feeId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error marking fee as paid:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('✅ Fee marked as paid successfully');
+      return { success: true, fee: data };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource mark fee as paid error:', error);
+      return { success: false, error: 'Failed to mark fee as paid' };
+    }
+  }
+
+  /**
+   * Update fee details
+   */
+  static async updateFee(feeId, feeData) {
+    try {
+      console.log('💰 AdminDatasource: Updating fee details for ID:', feeId);
+      console.log('💰 Fee data received:', feeData);
+
+      const updateData = {
+        updated_at: new Date().toISOString()
+      };
+
+      // Map the correct database field names
+      if (feeData.payment_type !== undefined) updateData.payment_type = feeData.payment_type;
+      if (feeData.installment_amount !== undefined) updateData.installment_amount = feeData.installment_amount;
+      if (feeData.total_amount !== undefined) updateData.total_amount = feeData.total_amount;
+      if (feeData.due_date !== undefined) updateData.due_date = feeData.due_date;
+      if (feeData.status !== undefined) updateData.status = feeData.status;
+      if (feeData.notes !== undefined) updateData.notes = feeData.notes;
+      if (feeData.course_name !== undefined) updateData.course_name = feeData.course_name;
+
+      // If marking as paid, set paid_date
+      if (feeData.status === 'paid' && !feeData.paid_date) {
+        updateData.paid_date = new Date().toISOString();
+      }
+
+      console.log('💰 Update data to be sent:', updateData);
+
+      const { data, error } = await supabase
+        .from('fees')
+        .update(updateData)
+        .eq('id', feeId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error updating fee:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('✅ Fee updated successfully:', data);
+      return { success: true, fee: data };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource update fee error:', error);
+      return { success: false, error: 'Failed to update fee' };
     }
   }
 

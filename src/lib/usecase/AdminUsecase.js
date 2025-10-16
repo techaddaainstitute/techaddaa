@@ -34,6 +34,8 @@ export class AdminUsecase {
 
       if (result.success) {
         localStorage.setItem('adminUser', JSON.stringify(result.user));
+        localStorage.setItem('adminSessionToken', result.sessionToken);
+        localStorage.setItem('adminSessionExpiry', result.expiresAt);
         
         toast.success('Admin login successful!');
         
@@ -553,6 +555,165 @@ export class AdminUsecase {
       this.clearAdminSession();
       return { valid: false, reason: 'Validation error' };
     }
+  }
+
+  /**
+   * Get detailed student information
+   */
+  static async getStudentDetails(studentId) {
+    try {
+      if (!studentId) {
+        return { success: false, error: 'Student ID is required' };
+      }
+
+      const result = await AdminDatasource.getStudentDetails(studentId);
+      return result;
+    } catch (error) {
+      console.error('Error fetching student details:', error);
+      return { success: false, error: 'Failed to fetch student details' };
+    }
+  }
+
+  /**
+   * Get student course enrollments
+   */
+  static async getStudentEnrollments(studentId) {
+    try {
+      if (!studentId) {
+        return { success: false, error: 'Student ID is required' };
+      }
+
+      const result = await AdminDatasource.getStudentEnrollments(studentId);
+      return result;
+    } catch (error) {
+      console.error('Error fetching student enrollments:', error);
+      return { success: false, error: 'Failed to fetch student enrollments' };
+    }
+  }
+
+  /**
+   * Get student fees information
+   */
+  static async getStudentFees(studentId) {
+    try {
+      if (!studentId) {
+        return { success: false, error: 'Student ID is required' };
+      }
+
+      const result = await AdminDatasource.getStudentFees(studentId);
+      return result;
+    } catch (error) {
+      console.error('Error fetching student fees:', error);
+      return { success: false, error: 'Failed to fetch student fees' };
+    }
+  }
+
+  /**
+   * Update student details
+   */
+  static async updateStudentDetails(studentId, studentData) {
+    try {
+      if (!studentId) {
+        return { success: false, error: 'Student ID is required' };
+      }
+
+      if (!studentData || typeof studentData !== 'object') {
+        return { success: false, error: 'Valid student data is required' };
+      }
+
+      // Validate required fields
+      if (!studentData.full_name && !studentData.name) {
+        return { success: false, error: 'Student name is required' };
+      }
+
+      if (studentData.email && !this.isValidEmail(studentData.email)) {
+        return { success: false, error: 'Please enter a valid email address' };
+      }
+
+      if (studentData.phone && !this.isValidPhone(studentData.phone)) {
+        return { success: false, error: 'Please enter a valid phone number' };
+      }
+
+      const result = await AdminDatasource.updateStudentDetails(studentId, studentData);
+      
+      if (result.success) {
+        toast.success('Student details updated successfully!');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error updating student details:', error);
+      return { success: false, error: 'Failed to update student details' };
+    }
+  }
+
+  /**
+   * Mark fee as paid
+   */
+  static async markFeeAsPaid(feeId) {
+    try {
+      if (!feeId) {
+        return { success: false, error: 'Fee ID is required' };
+      }
+
+      const result = await AdminDatasource.markFeeAsPaid(feeId);
+      
+      if (result.success) {
+        toast.success('Fee marked as paid successfully!');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error marking fee as paid:', error);
+      return { success: false, error: 'Failed to mark fee as paid' };
+    }
+  }
+
+  /**
+   * Update fee details
+   */
+  static async updateFee(feeId, feeData) {
+    try {
+      if (!feeId) {
+        return { success: false, error: 'Fee ID is required' };
+      }
+
+      if (!feeData || typeof feeData !== 'object') {
+        return { success: false, error: 'Valid fee data is required' };
+      }
+
+      // Validate amount if provided
+      if (feeData.amount !== undefined && (isNaN(feeData.amount) || feeData.amount < 0)) {
+        return { success: false, error: 'Please enter a valid amount' };
+      }
+
+      const result = await AdminDatasource.updateFee(feeId, feeData);
+      
+      if (result.success) {
+        toast.success('Fee updated successfully!');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error updating fee:', error);
+      return { success: false, error: 'Failed to update fee' };
+    }
+  }
+
+  /**
+   * Helper method to validate email format
+   */
+  static isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  /**
+   * Helper method to validate phone number format
+   */
+  static isValidPhone(phone) {
+    const phoneRegex = /^[+]?[\d\s\-\(\)]{10,}$/;
+    return phoneRegex.test(phone);
   }
 }
 

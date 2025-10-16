@@ -461,7 +461,12 @@ const AdminDashboard = () => {
                           </Badge>
                         </td>
                         <td>
-                          <Button variant="outline-primary" size="sm" className="me-2">
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm" 
+                            className="me-2"
+                            onClick={() => navigate(`/admin/student/${student.id}`)}
+                          >
                             View
                           </Button>
                           <Button 
