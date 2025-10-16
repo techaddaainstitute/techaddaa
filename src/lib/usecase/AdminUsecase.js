@@ -33,10 +33,7 @@ export class AdminUsecase {
       const result = await AdminDatasource.adminLogin(email, password);
 
       if (result.success) {
-        // Store admin session info with new session token
-        localStorage.setItem('adminSessionToken', result.sessionToken);
         localStorage.setItem('adminUser', JSON.stringify(result.user));
-        localStorage.setItem('adminSessionExpiry', result.expiresAt.toISOString());
         
         toast.success('Admin login successful!');
         

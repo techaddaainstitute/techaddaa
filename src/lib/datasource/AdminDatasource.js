@@ -86,7 +86,7 @@ export class AdminDatasource {
       const { data: adminData, error: verifyError } = await supabase
         .from('admin_user')
         .select('email, password_hash')
-        .eq('admin_id', adminId)
+        .eq('id', adminId)
         .eq('is_active', true)
         .single();
 
@@ -255,7 +255,6 @@ export class AdminDatasource {
           valid: true,
           admin: {
             id: session.admin_user_id,
-            admin_id: session.admin_user_id,
             email: 'admin@techaddaa.com', // Fallback
             full_name: 'Admin User', // Fallback
             role: 'admin', // Fallback
@@ -267,8 +266,7 @@ export class AdminDatasource {
       return {
         valid: true,
         admin: {
-          ...adminUsers,
-          admin_id: adminUsers.id
+          ...adminUsers
         }
       };
 

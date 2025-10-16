@@ -97,6 +97,7 @@ const StudentDashboard = () => {
         course_id: fee.course_id,
         description: fee.description
       };
+      localStorage.removeItem('pendingEnrollment');
       localStorage.setItem('pendingPayment', JSON.stringify(paymentPayload));
 
       // Initiate payment

@@ -94,6 +94,7 @@ const Checkout = () => {
         course_id: course.id,
         enrollmentData: enrollmentData
       };
+      localStorage.removeItem('pendingPayment');
       localStorage.setItem('pendingEnrollment', JSON.stringify(enrollmentPayload));
 
       // Initiate payment
