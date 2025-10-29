@@ -1,0 +1,9 @@
+# Redirect from Netlify subdomain to www
+https://techaddaa.netlify.app/*  https://www.techaddaa.in/:splat  301!
+
+# Redirect from non-www domain to www
+https://techaddaa.in/*  https://www.techaddaa.in/:splat  301!
+
+# React Router fallback (important for SPA)
+# This allows React Router to handle routes correctly
+/* /index.html 200

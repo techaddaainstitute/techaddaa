@@ -24,6 +24,19 @@ const StudentView = () => {
   // Modal states
   const [showFeeModal, setShowFeeModal] = useState(false);
   const [selectedFee, setSelectedFee] = useState(null);
+  // Add Fee modal state
+  const [showAddFeeModal, setShowAddFeeModal] = useState(false);
+  const [newFee, setNewFee] = useState({
+    course_id: '',
+    payment_type: 'full',
+    installment_amount: '',
+    total_installments: 1,
+    installment_number: 1,
+    due_date: '',
+    notes: ''
+  });
+  const [addFeeError, setAddFeeError] = useState('');
+  const [addFeeSubmitting, setAddFeeSubmitting] = useState(false);
 
   // Filter states
   const [feeFilter, setFeeFilter] = useState('all');
@@ -150,6 +163,159 @@ const StudentView = () => {
     } catch (err) {
       console.error('Error updating fee:', err);
       setError('An error occurred while updating fee');
+    }
+  };
+
+  const openAddFeeModal = () => {
+    const firstEnrollmentCourseId = enrollments[0]?.course_id || '';
+    const existingForCourse = fees.filter(f => f.course_id === firstEnrollmentCourseId);
+    const nextInstallmentNumber = existingForCourse.length
+      ? Math.max(...existingForCourse.map(f => Number(f.installment_number) || 0)) + 1
+      : 1;
+    setNewFee({
+      course_id: firstEnrollmentCourseId,
+      payment_type: 'full',
+      installment_amount: '',
+      total_installments: 1,
+      installment_number: nextInstallmentNumber,
+      due_date: '',
+      notes: ''
+    });
+    setAddFeeError('');
+    setAddFeeSubmitting(false);
+    setSuccess('Opening Add Fee modal…');
+    setTimeout(() => setSuccess(''), 1500);
+    setShowAddFeeModal(true);
+  };
+
+  const handleNewFeeChange = (field, value) => {
+    // When changing payment type to EMI, suggest the next available installment number
+    if (field === 'payment_type') {
+      const nextForCourse = (() => {
+        const existing = fees.filter(f => f.course_id === newFee.course_id);
+        return existing.length
+          ? Math.max(...existing.map(f => Number(f.installment_number) || 0)) + 1
+          : 1;
+      })();
+      if (value === 'emi') {
+        setNewFee(prev => ({ ...prev, payment_type: value, total_installments: Math.max(prev.total_installments || 2, 2), installment_number: nextForCourse }));
+        return;
+      } else {
+        // For full payment, normalize to single installment
+        setNewFee(prev => ({ ...prev, payment_type: value, total_installments: 1, installment_number: 1 }));
+        return;
+      }
+    }
+
+    if (field === 'course_id') {
+      // When course changes, recompute suggested installment number if EMI selected
+      const existing = fees.filter(f => f.course_id === value);
+      const nextForCourse = existing.length
+        ? Math.max(...existing.map(f => Number(f.installment_number) || 0)) + 1
+        : 1;
+      setNewFee(prev => ({ ...prev, [field]: value, installment_number: prev.payment_type === 'emi' ? nextForCourse : 1 }));
+      return;
+    }
+
+    setNewFee(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmitAddFee = async () => {
+    try {
+      setError('');
+      setSuccess('');
+      setAddFeeError('');
+      setAddFeeSubmitting(true);
+
+      if (!newFee.course_id || !newFee.installment_amount || !newFee.due_date) {
+        setAddFeeError('Please fill course, amount and due date');
+        setAddFeeSubmitting(false);
+        return;
+      }
+
+      // Additional validation for EMI
+      let totalInstallments = Number(newFee.total_installments) || 1;
+      let installmentNumber = Number(newFee.installment_number) || 1;
+      const paymentType = newFee.payment_type || 'full';
+
+      if (paymentType === 'emi') {
+        if (totalInstallments < 2) {
+          setAddFeeError('For EMI, total installments must be at least 2');
+          setAddFeeSubmitting(false);
+          return;
+        }
+        if (installmentNumber < 1 || installmentNumber > totalInstallments) {
+          setAddFeeError('Installment number must be between 1 and total installments');
+          setAddFeeSubmitting(false);
+          return;
+        }
+      } else {
+        totalInstallments = 1;
+        installmentNumber = 1;
+      }
+
+      // Check uniqueness for (user_id, course_id, installment_number)
+      const duplicate = fees.find(f => f.course_id === newFee.course_id && Number(f.installment_number) === installmentNumber);
+      if (duplicate) {
+        setAddFeeError(`Installment number ${installmentNumber} already exists for this course. Choose a different number.`);
+        setAddFeeSubmitting(false);
+        return;
+      }
+
+      const selectedEnrollment = enrollments.find(e => e.course_id === newFee.course_id);
+      const payload = {
+        course_id: newFee.course_id,
+        enrollment_id: selectedEnrollment?.id || null,
+        installment_amount: Number(newFee.installment_amount),
+        total_amount: Number(newFee.installment_amount),
+        payment_type: paymentType,
+        total_installments: totalInstallments,
+        installment_number: installmentNumber,
+        status: 'pending',
+        due_date: newFee.due_date,
+        course_name: selectedEnrollment?.course_title || 'Course Fee',
+        course_mode: selectedEnrollment?.enrollment_mode || 'online',
+        notes: newFee.notes || null
+      };
+
+      const result = await AdminUsecase.createFee(student.id, payload);
+
+      if (result.success) {
+        setFees(prev => [result.fee, ...prev]);
+        setShowAddFeeModal(false);
+        setSuccess('Fee created successfully!');
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setAddFeeError(result.error || 'Failed to create fee');
+      }
+    } catch (err) {
+      console.error('Error creating fee:', err);
+      setAddFeeError('An error occurred while creating fee');
+    }
+    finally {
+      setAddFeeSubmitting(false);
+    }
+  };
+
+  const handleDeleteFee = async (feeId) => {
+    try {
+      setError('');
+      setSuccess('');
+
+      const confirmed = window.confirm('Are you sure you want to delete this fee?');
+      if (!confirmed) return;
+
+      const result = await AdminUsecase.deleteFee(feeId);
+      if (result.success) {
+        setFees(prev => prev.filter(fee => fee.id !== feeId));
+        setSuccess('Fee deleted successfully!');
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(result.error || 'Failed to delete fee');
+      }
+    } catch (err) {
+      console.error('Error deleting fee:', err);
+      setError('An error occurred while deleting fee');
     }
   };
 
@@ -436,13 +602,30 @@ const StudentView = () => {
 
           {/* Fees Section */}
           <Card>
-            <Card.Header className="bg-warning text-dark">
+            <Card.Header className="bg-warning text-dark d-flex justify-content-between align-items-center">
               <h5 className="mb-0">
                 <FaRupeeSign className="me-2" />
                 Fee Management ({fees.length})
               </h5>
+              <Button type="button" variant="primary" size="sm" onClick={() => openAddFeeModal()}>
+                + Add Fee
+              </Button>
             </Card.Header>
             <Card.Body>
+              {/* Secondary Add Fee trigger inside body to avoid header overlay issues */}
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <small className="text-muted">
+                  Showing {getFilteredFees().length} of {fees.length} fees
+                </small>
+                <Button
+                  type="button"
+                  variant="outline-primary"
+                  size="sm"
+                  onClick={() => { console.log('Add Fee button (body) clicked'); openAddFeeModal(); }}
+                >
+                  + Add Fee
+                </Button>
+              </div>
               {fees.length > 0 ? (
                 <>
                   {/* Filter Dropdown */}
@@ -463,9 +646,8 @@ const StudentView = () => {
                         <option value="overdue">Overdue ({fees.filter(f => f.status === 'overdue').length})</option>
                       </Form.Select>
                     </div>
-                    <small className="text-muted">
-                      Showing {getFilteredFees().length} of {fees.length} fees
-                    </small>
+                    {/* Moved to top toolbar with secondary Add Fee button */}
+                    <div></div>
                   </div>
 
                   <Table responsive hover>
@@ -535,6 +717,14 @@ const StudentView = () => {
                           >
                             <FaEdit className="me-1" />
                             Edit
+                          </Button>
+                          <Button
+                            variant="outline-danger"
+                            size="sm"
+                            className="ms-2"
+                            onClick={() => handleDeleteFee(fee.id)}
+                          >
+                            Delete
                           </Button>
                         </td>
                       </tr>
@@ -656,6 +846,130 @@ const StudentView = () => {
             onClick={() => handleUpdateFee(selectedFee.id, selectedFee)}
           >
             Update Fee
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Add Fee Modal */}
+      <Modal show={showAddFeeModal} onHide={() => setShowAddFeeModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Add Fee</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {addFeeError && (
+            <Alert variant="danger" className="mb-3">
+              {addFeeError}
+            </Alert>
+          )}
+          <Form>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Course</Form.Label>
+                  <Form.Select
+                    value={newFee.course_id || ''}
+                    onChange={(e) => handleNewFeeChange('course_id', e.target.value)}
+                  >
+                    <option value="">Select course</option>
+                    {enrollments.map(en => (
+                      <option key={en.id} value={en.course_id}>
+                        {en.course_title || 'Course'}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Payment Type</Form.Label>
+                  <Form.Select
+                    value={newFee.payment_type}
+                    onChange={(e) => handleNewFeeChange('payment_type', e.target.value)}
+                  >
+                    <option value="full">Full Payment</option>
+                    <option value="emi">EMI</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Amount</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min="0"
+                    value={newFee.installment_amount}
+                    onChange={(e) => handleNewFeeChange('installment_amount', e.target.value)}
+                    placeholder="Enter amount"
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Due Date</Form.Label>
+                  <Form.Control
+                    type="date"
+                    value={newFee.due_date}
+                    onChange={(e) => handleNewFeeChange('due_date', e.target.value)}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+            {newFee.payment_type === 'emi' && (
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Total Installments</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="2"
+                      value={newFee.total_installments}
+                      onChange={(e) => handleNewFeeChange('total_installments', e.target.value)}
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Installment Number</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min="1"
+                      max={Number(newFee.total_installments) || undefined}
+                      value={newFee.installment_number}
+                      onChange={(e) => handleNewFeeChange('installment_number', e.target.value)}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+            )}
+            <Row>
+              <Col md={12}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Notes</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={3}
+                    value={newFee.notes}
+                    onChange={(e) => handleNewFeeChange('notes', e.target.value)}
+                    placeholder="Optional notes"
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAddFeeModal(false)}>Cancel</Button>
+          <Button variant="success" onClick={handleSubmitAddFee} disabled={addFeeSubmitting}>
+            {addFeeSubmitting ? (
+              <>
+                <Spinner size="sm" animation="border" className="me-2" />
+                Adding...
+              </>
+            ) : (
+              'Add Fee'
+            )}
           </Button>
         </Modal.Footer>
       </Modal>

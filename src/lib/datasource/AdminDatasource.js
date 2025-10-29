@@ -1384,6 +1384,81 @@ export class AdminDatasource {
     }
   }
 
+  /**
+   * Create a single fee record
+   */
+  static async createFee(feeData) {
+    try {
+      console.log('💰 AdminDatasource: Creating fee record:', feeData);
+
+      const insertData = {
+        user_id: feeData.user_id,
+        course_id: feeData.course_id,
+        enrollment_id: feeData.enrollment_id || null,
+        total_amount: feeData.total_amount,
+        installment_amount: feeData.installment_amount,
+        installment_number: feeData.installment_number || 1,
+        total_installments: feeData.total_installments || 1,
+        status: feeData.status || 'pending',
+        payment_type: feeData.payment_type || 'full',
+        due_date: feeData.due_date,
+        paid_date: feeData.paid_date || null,
+        course_name: feeData.course_name,
+        course_mode: feeData.course_mode || 'online',
+        payment_method: feeData.payment_method || null,
+        transaction_id: feeData.transaction_id || null,
+        payment_gateway_response: feeData.payment_gateway_response || null,
+        notes: feeData.notes || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
+        .from('fees')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error creating fee:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('✅ Fee created successfully:', data);
+      return { success: true, fee: data };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource create fee error:', error);
+      return { success: false, error: 'Failed to create fee' };
+    }
+  }
+
+  /**
+   * Delete a fee record by ID
+   */
+  static async deleteFee(feeId) {
+    try {
+      console.log('🗑️ AdminDatasource: Deleting fee ID:', feeId);
+
+      const { error } = await supabase
+        .from('fees')
+        .delete()
+        .eq('id', feeId);
+
+      if (error) {
+        console.error('❌ Error deleting fee:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log('✅ Fee deleted successfully');
+      return { success: true };
+
+    } catch (error) {
+      console.error('❌ AdminDatasource delete fee error:', error);
+      return { success: false, error: 'Failed to delete fee' };
+    }
+  }
+
 }
 
 export default AdminDatasource;

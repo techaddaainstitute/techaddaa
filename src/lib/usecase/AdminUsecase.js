@@ -670,6 +670,65 @@ export class AdminUsecase {
   }
 
   /**
+   * Create a fee record (admin)
+   */
+  static async createFee(userId, payload) {
+    try {
+      if (!userId) return { success: false, error: 'User ID is required' };
+      if (!payload || !payload.course_id) return { success: false, error: 'Course is required' };
+      if (!payload.installment_amount || !payload.due_date) {
+        return { success: false, error: 'Amount and due date are required' };
+      }
+
+      const feeData = {
+        user_id: userId,
+        course_id: payload.course_id,
+        enrollment_id: payload.enrollment_id || null,
+        total_amount: payload.total_amount || payload.installment_amount,
+        installment_amount: payload.installment_amount,
+        installment_number: payload.installment_number || 1,
+        total_installments: payload.total_installments || 1,
+        status: payload.status || 'pending',
+        payment_type: payload.payment_type || 'full',
+        due_date: payload.due_date,
+        paid_date: payload.paid_date || null,
+        course_name: payload.course_name || payload.course_title || 'Course Fee',
+        course_mode: payload.course_mode || 'online',
+        payment_method: payload.payment_method || null,
+        transaction_id: payload.transaction_id || null,
+        payment_gateway_response: payload.payment_gateway_response || null,
+        notes: payload.notes || null
+      };
+
+      const result = await AdminDatasource.createFee(feeData);
+      if (result.success) {
+        toast.success('Fee created successfully');
+      }
+      return result;
+    } catch (error) {
+      console.error('Error creating fee:', error);
+      return { success: false, error: 'Failed to create fee' };
+    }
+  }
+
+  /**
+   * Delete a fee record (admin)
+   */
+  static async deleteFee(feeId) {
+    try {
+      if (!feeId) return { success: false, error: 'Fee ID is required' };
+      const result = await AdminDatasource.deleteFee(feeId);
+      if (result.success) {
+        toast.success('Fee deleted successfully');
+      }
+      return result;
+    } catch (error) {
+      console.error('Error deleting fee:', error);
+      return { success: false, error: 'Failed to delete fee' };
+    }
+  }
+
+  /**
    * Update fee details
    */
   static async updateFee(feeId, feeData) {
