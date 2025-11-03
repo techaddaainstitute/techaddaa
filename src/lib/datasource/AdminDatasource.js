@@ -831,7 +831,8 @@ export class AdminDatasource {
         payment_type: studentData.payment_mode, // Map payment_mode to payment_type
         price_paid: studentData.total_amount ? parseFloat(studentData.total_amount) : 0,
         emi_months: studentData.installment_count || 6,
-        first_payment_made: false // Default to false, can be updated based on form logic
+        first_payment_made: false, // Default to false, can be updated based on form logic
+        first_installment_date: studentData.first_installment_date || null // Capture first installment date if provided
       };
 
       // Validate required fields
@@ -980,11 +981,16 @@ export class AdminDatasource {
               if (paymentType === 'emi') {
                 // Create multiple entries for EMI
                 const installmentAmount = Math.ceil(totalAmount / emiMonths);
-                
+                // Use provided first_installment_date as the base due date if available
+                const baseDueDate = mappedData.first_installment_date
+                  ? new Date(mappedData.first_installment_date)
+                  : new Date();
+
                 for (let i = 1; i <= emiMonths; i++) {
-                  const dueDate = new Date();
-                  dueDate.setMonth(dueDate.getMonth() + i - 1);
-                  
+                  const dueDate = new Date(baseDueDate);
+                  // For subsequent installments, add months relative to the base date
+                  dueDate.setMonth(baseDueDate.getMonth() + i - 1);
+
                   const isFirstInstallment = i === 1;
                   
                   feeRecords.push({
@@ -1019,7 +1025,10 @@ export class AdminDatasource {
                   total_installments: 1,
                   status: mappedData.first_payment_made ? 'paid' : 'pending',
                   payment_type: 'full',
-                  due_date: new Date().toISOString().split('T')[0],
+                  // Use provided first_installment_date as due date if available
+                  due_date: (mappedData.first_installment_date
+                    ? new Date(mappedData.first_installment_date)
+                    : new Date()).toISOString().split('T')[0],
                   paid_date: mappedData.first_payment_made ? new Date().toISOString() : null,
                   course_name: courseName,
                   course_mode: courseMode,
