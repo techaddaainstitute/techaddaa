@@ -1,10 +1,6 @@
 import { supabase } from '../supabase';
 
 export class AdminDatasource {
-
-  /**
-   * Admin login with email and password using dedicated admin_user table
-   */
   static async adminLogin(email, password) {
     try {
       console.log('🔐 AdminDatasource: Attempting admin login for:', email);

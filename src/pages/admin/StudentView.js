@@ -368,7 +368,7 @@ const StudentView = () => {
                 Back
               </Button>
               <div>
-                <h2 className="mb-0">Student Details</h2>
+                <h2 className="mb-0">Details</h2>
                 <small className="text-muted">ID: {student.id}</small>
               </div>
             </div>
@@ -651,86 +651,86 @@ const StudentView = () => {
                   </div>
 
                   <Table responsive hover>
-                  <thead>
-                    <tr>
-                      <th>Fee Type</th>
-                      <th>Amount</th>
-                      <th>Due Date</th>
-                      <th>Status</th>
-                      <th>Paid Date</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getFilteredFees().map(fee => (
-                      <tr key={fee.id}>
-                        <td>
-                          <strong>{fee.payment_type || 'Course Fee'}</strong>
-                          <br />
-                          <small className="text-muted">
-                            {fee.notes || 'No notes'}
-                          </small>
-                        </td>
-                        <td>
-                          <strong>₹{fee.installment_amount ? fee.installment_amount.toLocaleString() : 'N/A'}</strong>
-                        </td>
-                        <td>
-                          {fee.due_date
-                            ? new Date(fee.due_date).toLocaleDateString()
-                            : 'N/A'
-                          }
-                        </td>
-                        <td>
-                          <Badge bg={
-                            fee.status === 'paid' ? 'success' :
-                              fee.status === 'pending' ? 'warning' :
-                                fee.status === 'overdue' ? 'danger' : 'secondary'
-                          }>
-                            {fee.status || 'Pending'}
-                          </Badge>
-                        </td>
-                        <td>
-                          {fee.paid_date
-                            ? new Date(fee.paid_date).toLocaleDateString()
-                            : '-'
-                          }
-                        </td>
-                        <td>
-                          {fee.status !== 'paid' && (
-                            <Button
-                              variant="success"
-                              size="sm"
-                              className="me-2"
-                              onClick={() => handleMarkFeeAsPaid(fee.id)}
-                            >
-                              <FaCheckCircle className="me-1" />
-                              Mark Paid
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline-primary"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedFee(fee);
-                              setShowFeeModal(true);
-                            }}
-                          >
-                            <FaEdit className="me-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline-danger"
-                            size="sm"
-                            className="ms-2"
-                            onClick={() => handleDeleteFee(fee.id)}
-                          >
-                            Delete
-                          </Button>
-                        </td>
+                    <thead>
+                      <tr>
+                        <th>Fee Type</th>
+                        <th>Amount</th>
+                        <th>Due Date</th>
+                        <th>Status</th>
+                        <th>Paid Date</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </Table>
+                    </thead>
+                    <tbody>
+                      {getFilteredFees().map(fee => (
+                        <tr key={fee.id}>
+                          <td>
+                            <strong>{fee.payment_type || 'Course Fee'}</strong>
+                            <br />
+                            <small className="text-muted">
+                              {fee.notes || 'No notes'}
+                            </small>
+                          </td>
+                          <td>
+                            <strong>₹{fee.installment_amount ? fee.installment_amount.toLocaleString() : 'N/A'}</strong>
+                          </td>
+                          <td>
+                            {fee.due_date
+                              ? new Date(fee.due_date).toLocaleDateString()
+                              : 'N/A'
+                            }
+                          </td>
+                          <td>
+                            <Badge bg={
+                              fee.status === 'paid' ? 'success' :
+                                fee.status === 'pending' ? 'warning' :
+                                  fee.status === 'overdue' ? 'danger' : 'secondary'
+                            }>
+                              {fee.status || 'Pending'}
+                            </Badge>
+                          </td>
+                          <td>
+                            {fee.paid_date
+                              ? new Date(fee.paid_date).toLocaleDateString()
+                              : '-'
+                            }
+                          </td>
+                          <td>
+                            {fee.status !== 'paid' && (
+                              <Button
+                                variant="success"
+                                size="sm"
+                                className="me-2"
+                                onClick={() => handleMarkFeeAsPaid(fee.id)}
+                              >
+                                <FaCheckCircle className="me-1" />
+                                Mark Paid
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline-primary"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedFee(fee);
+                                setShowFeeModal(true);
+                              }}
+                            >
+                              <FaEdit className="me-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline-danger"
+                              size="sm"
+                              className="ms-2"
+                              onClick={() => handleDeleteFee(fee.id)}
+                            >
+                              Delete
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
                 </>
               ) : (
                 <div className="text-center text-muted py-4">
