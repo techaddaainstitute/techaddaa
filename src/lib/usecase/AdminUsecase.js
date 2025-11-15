@@ -592,6 +592,97 @@ export class AdminUsecase {
   }
 
   /**
+   * Accounts: List entries
+   */
+  static async getAccountsUsecase(limit = 100, offset = 0) {
+    try {
+      // Fetch manual account entries
+      const accountsResult = await AdminDatasource.getAccounts(limit, offset);
+      // Fetch paid fee transactions (account statement)
+      const statementResult = await AdminDatasource.getAccountStatement(limit, offset);
+
+      if (!accountsResult.success && !statementResult.success) {
+        throw new Error(accountsResult.error || statementResult.error || 'Failed to fetch accounts');
+      }
+
+      const manualAccounts = accountsResult.success ? (accountsResult.accounts || []) : [];
+      const paidTransactions = statementResult.success ? (statementResult.transactions || []) : [];
+
+      // Map paid fees into account-like rows with required description
+      const mappedPaid = paidTransactions.map((txn) => ({
+        id: txn.id,
+        description: `${txn.student_name || 'Student'} Fee Paid`,
+        amount: txn.amount || 0,
+        credit: true,
+        txn_date: txn.payment_date, // align to the accounts table date field
+        created_at: null,
+      }));
+
+      // Combine and sort by date DESC (newest first)
+      const combined = [...manualAccounts, ...mappedPaid].sort((a, b) => {
+        const da = new Date(a.txn_date || a.created_at || 0).getTime();
+        const db = new Date(b.txn_date || b.created_at || 0).getTime();
+        return db - da;
+      });
+
+      // Compute running balance per row: credit adds, debit subtracts.
+      // Running balance is based on chronological order, so calculate from oldest to newest.
+      let running = 0;
+      const withBalance = combined
+        .slice()
+        .reverse()
+        .map((row) => {
+          const amtRaw = typeof row.amount === 'string' ? parseFloat(row.amount) : row.amount;
+          const amt = Number.isFinite(amtRaw) ? amtRaw : 0;
+          const delta = (row.credit ? 1 : -1) * amt;
+          running += delta;
+          return { ...row, balance: running };
+        })
+        .reverse();
+
+      return {
+        success: true,
+        accounts: withBalance,
+        count: withBalance.length,
+      };
+    } catch (error) {
+      console.error('Get accounts usecase error:', error);
+      toast.error(error.message || 'Failed to fetch accounts');
+      return { success: false, accounts: [], count: 0, error: error.message };
+    }
+  }
+
+  /**
+   * Accounts: Add a new statement
+   */
+  static async addAccountStatementUsecase({ description, credit, txn_date, amount }) {
+    try {
+      if (!description || typeof credit === 'undefined' || !txn_date) {
+        return { success: false, error: 'Please provide description, credit and date' };
+      }
+
+      if (typeof amount === 'undefined' || amount === '' || Number.isNaN(parseFloat(amount))) {
+        return { success: false, error: 'Please provide a valid amount' };
+      }
+      const amtNum = typeof amount === 'string' ? parseFloat(amount) : amount;
+      if (amtNum <= 0) {
+        return { success: false, error: 'Amount must be greater than 0' };
+      }
+
+      const result = await AdminDatasource.addAccountEntry({ description, credit, txn_date, amount: amtNum });
+      if (result.success) {
+        toast.success('Account entry added');
+        return { success: true, account: result.account };
+      }
+      throw new Error(result.error || 'Failed to add account entry');
+    } catch (error) {
+      console.error('Add account usecase error:', error);
+      toast.error(error.message || 'Failed to add account entry');
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Get student fees information
    */
   static async getStudentFees(studentId) {
@@ -666,6 +757,22 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Error marking fee as paid:', error);
       return { success: false, error: 'Failed to mark fee as paid' };
+    }
+  }
+
+  /**
+   * Get list of pending fees across all students
+   */
+  static async getPendingFeesUsecase(limit = 200, offset = 0) {
+    try {
+      const result = await AdminDatasource.getPendingFees(limit, offset);
+      if (result.success) {
+        return { success: true, fees: result.fees };
+      }
+      return { success: false, fees: [], error: result.error || 'Failed to fetch pending fees' };
+    } catch (error) {
+      console.error('Get pending fees usecase error:', error);
+      return { success: false, fees: [], error: error.message || 'Failed to fetch pending fees' };
     }
   }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Nav, Tab, Modal, Form, Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { FaSignOutAlt, FaKey, FaUser, FaRupeeSign, FaClock, FaCreditCard, FaMoneyBillWave, FaPlus, FaEdit, FaCalendarAlt } from 'react-icons/fa';
+import { FaSignOutAlt, FaKey, FaUser, FaRupeeSign, FaClock, FaCreditCard, FaMoneyBillWave, FaPlus, FaEdit, FaCalendarAlt, FaSearch, FaFileExport } from 'react-icons/fa';
 import AdminUsecase from '../../lib/usecase/AdminUsecase';
 
 const AdminDashboard = () => {
@@ -18,12 +18,15 @@ const AdminDashboard = () => {
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState([]);
   const [financialStats, setFinancialStats] = useState({});
+  const [accounts, setAccounts] = useState([]);
+  const [pendingFees, setPendingFees] = useState([]);
   const navigate = useNavigate();
 
   // Modal states
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [showEditCourseModal, setShowEditCourseModal] = useState(false);
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
 
   // Form data states
   const [studentFormData, setStudentFormData] = useState({
@@ -49,9 +52,70 @@ const AdminDashboard = () => {
     is_active: true
   });
 
+  const [accountFormData, setAccountFormData] = useState({
+    description: '',
+    credit: false,
+    txn_date: new Date().toISOString().split('T')[0],
+    amount: ''
+  });
+
   const [editingCourse, setEditingCourse] = useState(null);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [accountFormError, setAccountFormError] = useState('');
+  const [accountFormSuccess, setAccountFormSuccess] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Helper: format date as "12 Sep 2025"
+  const formatDateShort = (dateStr) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (isNaN(d)) return '—';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
+
+  // Filter accounts by search query
+  const getFilteredAccounts = () => {
+    const q = (searchQuery || '').trim().toLowerCase();
+    if (!q) return accounts;
+    return (accounts || []).filter((row) => {
+      const desc = String(row.description || '').toLowerCase();
+      const type = row.credit ? 'credit' : 'debit';
+      const amtStr = typeof row.amount === 'number' ? row.amount.toString() : String(row.amount || '');
+      const dateStr = formatDateShort(row.txn_date).toLowerCase();
+      return desc.includes(q) || type.includes(q) || amtStr.includes(q) || dateStr.includes(q);
+    });
+  };
+
+  const handleExportAccounts = () => {
+    try {
+      const data = getFilteredAccounts();
+      const header = ['Description','Amount','Type','Transaction Date','Balance'];
+      const rows = data.map((r) => [
+        r.description ?? '',
+        Number(r.amount ?? 0),
+        r.credit ? 'Credit' : 'Debit',
+        formatDateShort(r.txn_date),
+        Number(r.balance ?? 0),
+      ]);
+      const escape = (val) => String(val).replace(/"/g, '""');
+      const csv = [header, ...rows]
+        .map((row) => row.map((f) => `"${escape(f)}"`).join(','))
+        .join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `accounts_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export error:', err);
+    }
+  };
 
   useEffect(() => {
     const initializeAdmin = async () => {
@@ -87,6 +151,8 @@ const AdminDashboard = () => {
       const enrollmentsResult = await AdminUsecase.getAllEnrollmentsUsecase();
       const coursesResult = await AdminUsecase.getAllCoursesUsecase();
       const financialResult = await AdminUsecase.getFinancialStatsUsecase();
+      const accountsResult = await AdminUsecase.getAccountsUsecase(100, 0);
+      const pendingFeesResult = await AdminUsecase.getPendingFeesUsecase(200, 0);
 
       console.log('Courses result:', coursesResult);
       console.log('Courses data:', coursesResult.courses);
@@ -96,6 +162,8 @@ const AdminDashboard = () => {
       setEnrollments(enrollmentsResult.enrollments || []);
       setCourses(coursesResult.courses || []);
       setFinancialStats(financialResult || {});
+      setAccounts(accountsResult.accounts || []);
+      setPendingFees(pendingFeesResult.fees || []);
 
       setStats({
         totalStudents: studentsResult.count || 0,
@@ -112,6 +180,19 @@ const AdminDashboard = () => {
         totalEnrollments: 89,
         totalRevenue: 245000
       });
+    }
+  };
+
+  const handleMarkFeeDone = async (feeId) => {
+    try {
+      const result = await AdminUsecase.markFeeAsPaid(feeId);
+      if (result && result.success) {
+        setPendingFees((prev) => prev.filter((f) => f.id !== feeId));
+      } else {
+        console.error('Mark fee paid failed:', result?.message || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Error marking fee as paid:', error);
     }
   };
 
@@ -154,8 +235,11 @@ const AdminDashboard = () => {
       category: '',
       is_active: true
     });
+    setAccountFormData({ description: '', credit: false, txn_date: new Date().toISOString().split('T')[0], amount: '' });
     setFormError('');
     setFormSuccess('');
+    setAccountFormError('');
+    setAccountFormSuccess('');
   };
 
   const handleAddStudent = async (e) => {
@@ -265,6 +349,49 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error adding course:', error);
       setFormError('An error occurred while adding the course');
+    }
+  };
+
+  const handleAddAccount = async (e) => {
+    e.preventDefault();
+    setAccountFormError('');
+    setAccountFormSuccess('');
+
+    try {
+      if (!accountFormData.description || !accountFormData.txn_date) {
+        setAccountFormError('Please provide description and date');
+        return;
+      }
+      if (accountFormData.amount === '' || Number.isNaN(parseFloat(accountFormData.amount))) {
+        setAccountFormError('Please provide a valid amount');
+        return;
+      }
+      const amtNum = parseFloat(accountFormData.amount);
+      if (amtNum <= 0) {
+        setAccountFormError('Amount must be greater than 0');
+        return;
+      }
+
+      const result = await AdminUsecase.addAccountStatementUsecase({
+        description: accountFormData.description,
+        credit: !!accountFormData.credit,
+        txn_date: accountFormData.txn_date,
+        amount: amtNum,
+      });
+
+      if (result.success) {
+        setAccountFormSuccess('Statement added successfully!');
+        await fetchDashboardData(); // Refresh
+        setTimeout(() => {
+          setShowAddAccountModal(false);
+          resetForms();
+        }, 1200);
+      } else {
+        setAccountFormError(result.error || 'Failed to add statement');
+      }
+    } catch (error) {
+      console.error('Error adding account statement:', error);
+      setAccountFormError('An error occurred while adding the statement');
     }
   };
 
@@ -412,6 +539,9 @@ const AdminDashboard = () => {
           </Nav.Item>
           <Nav.Item>
             <Nav.Link eventKey="financial">Financial</Nav.Link>
+          </Nav.Item>
+          <Nav.Item>
+            <Nav.Link eventKey="accounts">Accounts</Nav.Link>
           </Nav.Item>
         </Nav>
 
@@ -638,174 +768,121 @@ const AdminDashboard = () => {
             </Card>
           </Tab.Pane>
 
-          {/* Financial Tab */}
-          <Tab.Pane eventKey="financial">
+          {/* Accounts Tab */}
+          <Tab.Pane eventKey="accounts">
             <Card>
-              <Card.Header>
-                <h5 className="mb-0">Financial Overview & Account Statements</h5>
+              <Card.Header className="d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">Accounts</h5>
+                <div className="d-flex align-items-center gap-2">
+                  <Form.Control
+                    type="text"
+                    placeholder="Search..."
+                    size="sm"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{ width: '220px' }}
+                  />
+                  <Button variant="outline-secondary" size="sm" onClick={handleExportAccounts}>
+                    <FaFileExport className="me-1" />
+                    Export
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => { setAccountFormData(prev => ({ ...prev, txn_date: new Date().toISOString().split('T')[0] })); setShowAddAccountModal(true); }}
+                  >
+                    <FaPlus className="me-1" />
+                    Add Statement
+                  </Button>
+                </div>
               </Card.Header>
               <Card.Body>
-                {/* Financial Summary Cards */}
-                <Row className="mb-4">
-                  <Col md={3}>
-                    <Card className="bg-success text-white">
-                      <Card.Body>
-                        <div className="d-flex justify-content-between">
-                          <div>
-                            <h6>Total Revenue</h6>
-                            <h4>₹{financialStats.totalRevenue?.toLocaleString() || '0'}</h4>
-                          </div>
-                          <FaRupeeSign size={30} />
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={3}>
-                    <Card className="bg-warning text-white">
-                      <Card.Body>
-                        <div className="d-flex justify-content-between">
-                          <div>
-                            <h6>Pending Revenue</h6>
-                            <h4>₹{financialStats.pendingRevenue?.toLocaleString() || '0'}</h4>
-                          </div>
-                          <FaClock size={30} />
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={3}>
-                    <Card className="bg-info text-white">
-                      <Card.Body>
-                        <div className="d-flex justify-content-between">
-                          <div>
-                            <h6>Online Payments</h6>
-                            <h4>₹{financialStats.onlineRevenue?.toLocaleString() || '0'}</h4>
-                          </div>
-                          <FaCreditCard size={30} />
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={3}>
-                    <Card className="bg-secondary text-white">
-                      <Card.Body>
-                        <div className="d-flex justify-content-between">
-                          <div>
-                            <h6>Offline Payments</h6>
-                            <h4>₹{financialStats.offlineRevenue?.toLocaleString() || '0'}</h4>
-                          </div>
-                          <FaMoneyBillWave size={30} />
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
-
-                {/* Recent Transactions Table */}
-                <h6 className="mb-3">Recent Transactions</h6>
-                <Table striped bordered hover responsive>
+                <Table responsive hover>
                   <thead>
                     <tr>
-                      <th>Transaction ID</th>
-                      <th>Student Name</th>
-                      <th>Course</th>
+                      <th>Description</th>
                       <th>Amount</th>
-                      <th>Payment Mode</th>
-                      <th>Date & Time</th>
-                      <th>Actions</th>
+                      <th>Balance</th>
+                      <th>Type</th>
+                      <th>Transaction Date</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {financialStats.recentPayments && financialStats.recentPayments.length > 0 ? financialStats.recentPayments.map((payment, index) => (
-                      <tr key={payment.id || index}>
-                        <td>{payment.transaction_id || `TXN${String(index + 1).padStart(4, '0')}`}</td>
-                        <td>{payment.student_name || 'N/A'}</td>
-                        <td>{payment.course_title || 'N/A'}</td>
-                        <td>₹{payment.amount?.toLocaleString() || '0'}</td>
-                        <td>
-                          <Badge bg={payment.payment_mode === 'online' ? 'primary' : 'secondary'} className="me-1">
-                            {payment.payment_mode === 'online' ? 'Online' : 'Offline'}
-                          </Badge>
-                          {payment.payment_type && (
-                            <Badge bg="info" size="sm">
-                              {payment.payment_type.toUpperCase()}
+                    {getFilteredAccounts() && getFilteredAccounts().length > 0 ? (
+                      getFilteredAccounts().map((row) => (
+                        <tr key={row.id}>
+                          <td>{row.description}</td>
+                          <td>{typeof row.amount !== 'undefined' && row.amount !== null ? `₹${Number(row.amount).toLocaleString()}` : '—'}</td>
+                          <td>{typeof row.balance !== 'undefined' && row.balance !== null ? `₹${Number(row.balance).toLocaleString()}` : '—'}</td>
+                          <td>
+                            <Badge bg={row.credit ? 'success' : 'secondary'}>
+                              {row.credit ? 'Credit' : 'Debit'}
                             </Badge>
-                          )}
-                        </td>
-                        <td>{payment.payment_datetime || 'N/A'}</td>
-                        <td>
-                          <Button variant="outline-primary" size="sm" className="me-2">
-                            View
-                          </Button>
-                          <Button variant="outline-secondary" size="sm">
-                            Receipt
-                          </Button>
-                        </td>
-                      </tr>
-                    )) : (
+                          </td>
+                          <td>{formatDateShort(row.txn_date)}</td>
+                        </tr>
+                      ))
+                    ) : (
                       <tr>
-                        <td colSpan="7" className="text-center text-muted">
-                          {loading ? 'Loading financial data...' : 'No transactions found'}
+                        <td colSpan="5" className="text-center text-muted">
+                          {loading ? 'Loading accounts...' : 'No account entries found'}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </Table>
+              </Card.Body>
+            </Card>
+          </Tab.Pane>
 
-                {/* Transaction Summary */}
-                <Row className="mt-4">
-                  <Col md={6}>
-                    <Card>
-                      <Card.Header>
-                        <h6 className="mb-0">Payment Statistics</h6>
-                      </Card.Header>
-                      <Card.Body>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Total Transactions:</span>
-                          <strong>{financialStats.totalTransactions || 0}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Successful Payments:</span>
-                          <strong>{financialStats.successfulTransactions || 0}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Pending Payments:</span>
-                          <strong>{financialStats.pendingTransactions || 0}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between">
-                          <span>Failed Payments:</span>
-                          <strong>{financialStats.failedTransactions || 0}</strong>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col md={6}>
-                    <Card>
-                      <Card.Header>
-                        <h6 className="mb-0">Revenue Breakdown</h6>
-                      </Card.Header>
-                      <Card.Body>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Course Fees:</span>
-                          <strong>₹{financialStats.courseFeeRevenue?.toLocaleString() || '0'}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Registration Fees:</span>
-                          <strong>₹{financialStats.registrationFeeRevenue?.toLocaleString() || '0'}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Other Fees:</span>
-                          <strong>₹{financialStats.otherFeeRevenue?.toLocaleString() || '0'}</strong>
-                        </div>
-                        <hr />
-                        <div className="d-flex justify-content-between">
-                          <span><strong>Total Revenue:</strong></span>
-                          <strong>₹{financialStats.totalRevenue?.toLocaleString() || '0'}</strong>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
+          {/* Financial Tab */}
+          <Tab.Pane eventKey="financial">
+            <Card>
+              <Card.Header>
+                <h5 className="mb-0">Pending Fees</h5>
+              </Card.Header>
+              <Card.Body>
+                <Table responsive hover>
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Course</th>
+                      <th>Installment</th>
+                      <th>Amount</th>
+                      <th>Due Date</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingFees && pendingFees.length > 0 ? (
+                      pendingFees.map((fee) => {
+                        const overdue = fee.status === 'overdue' || (fee.due_date && new Date(fee.due_date) < new Date());
+                        return (
+                          <tr key={fee.id}>
+                            <td>{fee.student_name}</td>
+                            <td>{fee.course_title}</td>
+                            <td>{fee.installment_number}/{fee.total_installments}</td>
+                            <td>₹{Number(fee.amount).toLocaleString()}</td>
+                            <td>{formatDateShort(fee.due_date)}</td>
+                            <td>
+                              <Badge bg={overdue ? 'danger' : 'warning'}>{overdue ? 'Overdue' : 'Pending'}</Badge>
+                            </td>
+                            <td>
+                              <Button size="sm" variant="success" onClick={() => handleMarkFeeDone(fee.id)}>Mark Done</Button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan="7" className="text-center text-muted">
+                          {loading ? 'Loading pending fees...' : 'No pending fees'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
               </Card.Body>
             </Card>
           </Tab.Pane>
@@ -1270,6 +1347,66 @@ const AdminDashboard = () => {
           </Button>
           <Button variant="primary" onClick={handleUpdateCourse}>
             Update Course
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Add Account Statement Modal */}
+      <Modal show={showAddAccountModal} onHide={() => setShowAddAccountModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Add Account Statement</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {accountFormError && <Alert variant="danger">{accountFormError}</Alert>}
+          {accountFormSuccess && <Alert variant="success">{accountFormSuccess}</Alert>}
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label>Description *</Form.Label>
+              <Form.Control
+                type="text"
+                value={accountFormData.description}
+                onChange={(e) => setAccountFormData({ ...accountFormData, description: e.target.value })}
+                placeholder="Enter description"
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Amount (₹) *</Form.Label>
+              <Form.Control
+                type="number"
+                min="0"
+                step="0.01"
+                value={accountFormData.amount}
+                onChange={(e) => setAccountFormData({ ...accountFormData, amount: e.target.value })}
+                placeholder="Enter amount"
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Check
+                type="switch"
+                label="Credit"
+                checked={!!accountFormData.credit}
+                onChange={(e) => setAccountFormData({ ...accountFormData, credit: e.target.checked })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Transaction Date *</Form.Label>
+              <Form.Control
+                type="date"
+                value={accountFormData.txn_date}
+                onChange={(e) => setAccountFormData({ ...accountFormData, txn_date: e.target.value })}
+                required
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAddAccountModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleAddAccount}>
+            Add Statement
           </Button>
         </Modal.Footer>
       </Modal>

@@ -807,6 +807,72 @@ export class AdminDatasource {
   }
 
   /**
+   * Accounts: List entries from 'account' table
+   */
+  static async getAccounts(limit = 100, offset = 0) {
+    try {
+      const { data, error, count } = await supabase
+        .from('account')
+        .select('*', { count: 'exact' })
+        .order('txn_date', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return {
+        success: true,
+        accounts: data || [],
+        count: count || (data ? data.length : 0),
+      };
+    } catch (error) {
+      console.error('❌ AdminDatasource getAccounts error:', error);
+      return { success: false, error: error.message, accounts: [], count: 0 };
+    }
+  }
+
+  /**
+   * Accounts: Insert a new entry into 'account' table
+   */
+  static async addAccountEntry({ description, credit, txn_date, amount }) {
+    try {
+      if (!description || typeof credit === 'undefined' || !txn_date) {
+        return { success: false, error: 'description, credit and txn_date are required' };
+      }
+
+      const payload = {
+        description,
+        credit: !!credit,
+        txn_date,
+      };
+
+      if (typeof amount !== 'undefined') {
+        const amtNum = typeof amount === 'string' ? parseFloat(amount) : amount;
+        if (Number.isNaN(amtNum)) {
+          return { success: false, error: 'amount must be a valid number' };
+        }
+        payload.amount = amtNum;
+      }
+
+      const { data, error } = await supabase
+        .from('account')
+        .insert(payload)
+        .select('*')
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true, account: data };
+    } catch (error) {
+      console.error('❌ AdminDatasource addAccountEntry error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Add a new student with course enrollment
    */
   static async addStudentWithEnrollment(studentData) {
@@ -1337,6 +1403,62 @@ export class AdminDatasource {
     } catch (error) {
       console.error('❌ AdminDatasource mark fee as paid error:', error);
       return { success: false, error: 'Failed to mark fee as paid' };
+    }
+  }
+
+  /**
+   * Get all pending/overdue fees with student and course info
+   */
+  static async getPendingFees(limit = 200, offset = 0) {
+    try {
+      const { data, error } = await supabase
+        .from('fees')
+        .select(`
+          id,
+          user_id,
+          course_id,
+          course_name,
+          installment_number,
+          total_installments,
+          installment_amount,
+          status,
+          due_date,
+          created_at,
+          user_profiles!user_id (
+            full_name,
+            email
+          ),
+          courses!course_id (
+            title,
+            category
+          )
+        `)
+        .in('status', ['pending', 'overdue'])
+        .order('due_date', { ascending: true })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        return { success: false, error: error.message, fees: [] };
+      }
+
+      const fees = (data || []).map(fee => ({
+        id: fee.id,
+        user_id: fee.user_id,
+        student_name: fee.user_profiles?.full_name || 'N/A',
+        student_email: fee.user_profiles?.email || 'N/A',
+        course_title: fee.courses?.title || fee.course_name || 'N/A',
+        installment_number: fee.installment_number || 0,
+        total_installments: fee.total_installments || 0,
+        amount: fee.installment_amount || 0,
+        status: fee.status,
+        due_date: fee.due_date,
+        created_at: fee.created_at,
+      }));
+
+      return { success: true, fees };
+    } catch (err) {
+      console.error('❌ AdminDatasource getPendingFees error:', err);
+      return { success: false, error: 'Failed to fetch pending fees', fees: [] };
     }
   }
 
