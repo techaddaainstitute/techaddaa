@@ -24,6 +24,7 @@ const AdminDashboard = () => {
 
   // Modal states
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [showEditCourseModal, setShowEditCourseModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
@@ -43,12 +44,28 @@ const AdminDashboard = () => {
     first_installment_date: ''
   });
 
+  // Enroll existing student form (course + payment only)
+  const [enrollFormData, setEnrollFormData] = useState({
+    course_id: '',
+    enrollment_mode: 'online',
+    payment_mode: 'full',
+    total_amount: '',
+    installment_count: 3,
+    installment_amount: '',
+    first_installment_date: ''
+  });
+  const [selectedStudentForEnroll, setSelectedStudentForEnroll] = useState(null);
+  const [enrollFormError, setEnrollFormError] = useState('');
+  const [enrollFormSuccess, setEnrollFormSuccess] = useState('');
+
   const [courseFormData, setCourseFormData] = useState({
     title: '',
     description: '',
     price: '',
     duration: '',
     category: '',
+    level: 'beginner',
+    image_url: '',
     is_active: true
   });
 
@@ -65,6 +82,22 @@ const AdminDashboard = () => {
   const [accountFormError, setAccountFormError] = useState('');
   const [accountFormSuccess, setAccountFormSuccess] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchStudents, setSearchStudents] = useState('');
+  const [searchCourses, setSearchCourses] = useState('');
+  const [searchEnrollments, setSearchEnrollments] = useState('');
+  const [searchFees, setSearchFees] = useState('');
+
+  // Course categories (same values as src/pages/Courses.js#L19-28)
+  const courseCategoryOptions = [
+    { value: 'all', label: 'All Courses' },
+    { value: 'web', label: 'Web Development' },
+    { value: 'mobile', label: 'Mobile Development' },
+    { value: 'data', label: 'Data Science' },
+    { value: 'marketing', label: 'Digital Marketing' },
+    { value: 'design', label: 'UI/UX Design' },
+    { value: 'programming', label: 'Programming' },
+    { value: 'cloud', label: 'Cloud Computing' }
+  ];
 
   // Helper: format date as "12 Sep 2025"
   const formatDateShort = (dateStr) => {
@@ -114,6 +147,183 @@ const AdminDashboard = () => {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Export error:', err);
+    }
+  };
+
+  // Students: filter and export
+  const getFilteredStudents = () => {
+    const q = (searchStudents || '').trim().toLowerCase();
+    if (!q) return students;
+    return (students || []).filter((s) => {
+      const name = String(s.full_name || s.name || '').toLowerCase();
+      const email = String(s.email || '').toLowerCase();
+      const course = String(s.course_title || '').toLowerCase();
+      const status = s.is_active ? 'active' : 'inactive';
+      return name.includes(q) || email.includes(q) || course.includes(q) || status.includes(q);
+    });
+  };
+
+  const handleExportStudents = () => {
+    try {
+      const data = getFilteredStudents();
+      const header = ['ID','Name','Email','Course','Status'];
+      const rows = (data || []).map((s) => [
+        s.id ?? '',
+        s.full_name || s.name || '',
+        s.email || '',
+        s.course_title || '',
+        s.is_active ? 'Active' : 'Inactive',
+      ]);
+      const escape = (val) => String(val).replace(/"/g, '""');
+      const csv = [header, ...rows]
+        .map((row) => row.map((f) => `"${escape(f)}"`).join(','))
+        .join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `students_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export students error:', err);
+    }
+  };
+
+  // Courses: filter and export
+  const getFilteredCourses = () => {
+    const q = (searchCourses || '').trim().toLowerCase();
+    if (!q) return courses;
+    return (courses || []).filter((c) => {
+      const title = String(c.title || '').toLowerCase();
+      const priceStr = typeof c.price === 'number' ? c.price.toString() : String(c.price || '');
+      const status = c.is_active ? 'active' : 'inactive';
+      const enrollStr = (c.enrollment_count || 0).toString();
+      return title.includes(q) || priceStr.includes(q) || status.includes(q) || enrollStr.includes(q);
+    });
+  };
+
+  const handleExportCourses = () => {
+    try {
+      const data = getFilteredCourses();
+      const header = ['ID','Course Title','Students','Price','Status'];
+      const rows = (data || []).map((c) => [
+        c.id ?? '',
+        c.title || '',
+        c.enrollment_count || 0,
+        typeof c.price === 'number' ? c.price : (c.price || ''),
+        c.is_active ? 'Active' : 'Inactive',
+      ]);
+      const escape = (val) => String(val).replace(/"/g, '""');
+      const csv = [header, ...rows]
+        .map((row) => row.map((f) => `"${escape(f)}"`).join(','))
+        .join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `courses_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export courses error:', err);
+    }
+  };
+
+  // Enrollments: filter and export
+  const getFilteredEnrollments = () => {
+    const q = (searchEnrollments || '').trim().toLowerCase();
+    if (!q) return enrollments;
+    return (enrollments || []).filter((e) => {
+      const student = String(e.student_name || e.user_email || '').toLowerCase();
+      const course = String(e.course_title || '').toLowerCase();
+      const dateStr = e.created_at ? formatDateShort(e.created_at).toLowerCase() : '';
+      const status = e.is_active ? 'active' : 'inactive';
+      const progressStr = (e.progress || 0).toString();
+      return student.includes(q) || course.includes(q) || dateStr.includes(q) || status.includes(q) || progressStr.includes(q);
+    });
+  };
+
+  const handleExportEnrollments = () => {
+    try {
+      const data = getFilteredEnrollments();
+      const header = ['ID','Student','Course','Enrollment Date','Progress','Status'];
+      const rows = (data || []).map((e) => [
+        e.id ?? '',
+        e.student_name || e.user_email || '',
+        e.course_title || '',
+        e.created_at ? formatDateShort(e.created_at) : '',
+        e.progress || 0,
+        e.is_active ? 'Active' : 'Inactive',
+      ]);
+      const escape = (val) => String(val).replace(/"/g, '""');
+      const csv = [header, ...rows]
+        .map((row) => row.map((f) => `"${escape(f)}"`).join(','))
+        .join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `enrollments_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export enrollments error:', err);
+    }
+  };
+
+  // Pending Fees (Financial): filter and export
+  const getFilteredPendingFees = () => {
+    const q = (searchFees || '').trim().toLowerCase();
+    if (!q) return pendingFees;
+    return (pendingFees || []).filter((f) => {
+      const student = String(f.student_name || '').toLowerCase();
+      const course = String(f.course_title || '').toLowerCase();
+      const installment = `${f.installment_number}/${f.total_installments}`.toLowerCase();
+      const amountStr = (typeof f.amount === 'number' ? f.amount.toString() : String(f.amount || ''));
+      const dueStr = formatDateShort(f.due_date).toLowerCase();
+      const overdue = f.status === 'overdue' || (f.due_date && new Date(f.due_date) < new Date());
+      const status = overdue ? 'overdue' : 'pending';
+      return student.includes(q) || course.includes(q) || installment.includes(q) || amountStr.includes(q) || dueStr.includes(q) || status.includes(q);
+    });
+  };
+
+  const handleExportPendingFees = () => {
+    try {
+      const data = getFilteredPendingFees();
+      const header = ['Student','Course','Installment','Amount','Due Date','Status'];
+      const rows = (data || []).map((f) => {
+        const overdue = f.status === 'overdue' || (f.due_date && new Date(f.due_date) < new Date());
+        return [
+          f.student_name || '',
+          f.course_title || '',
+          `${f.installment_number}/${f.total_installments}`,
+          typeof f.amount === 'number' ? f.amount : (f.amount || ''),
+          formatDateShort(f.due_date),
+          overdue ? 'Overdue' : 'Pending',
+        ];
+      });
+      const escape = (val) => String(val).replace(/"/g, '""');
+      const csv = [header, ...rows]
+        .map((row) => row.map((f) => `"${escape(f)}"`).join(','))
+        .join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pending_fees_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export pending fees error:', err);
     }
   };
 
@@ -233,6 +443,8 @@ const AdminDashboard = () => {
       price: '',
       duration: '',
       category: '',
+      level: 'beginner',
+      image_url: '',
       is_active: true
     });
     setAccountFormData({ description: '', credit: false, txn_date: new Date().toISOString().split('T')[0], amount: '' });
@@ -240,6 +452,81 @@ const AdminDashboard = () => {
     setFormSuccess('');
     setAccountFormError('');
     setAccountFormSuccess('');
+    setEnrollFormData({
+      course_id: '',
+      enrollment_mode: 'online',
+      payment_mode: 'full',
+      total_amount: '',
+      installment_count: 3,
+      installment_amount: '',
+      first_installment_date: ''
+    });
+    setSelectedStudentForEnroll(null);
+    setEnrollFormError('');
+    setEnrollFormSuccess('');
+  };
+
+  const handleOpenEnrollModal = (student) => {
+    setSelectedStudentForEnroll(student);
+    setEnrollFormData({
+      course_id: '',
+      enrollment_mode: 'online',
+      payment_mode: 'full',
+      total_amount: '',
+      installment_count: 3,
+      installment_amount: '',
+      first_installment_date: ''
+    });
+    setEnrollFormError('');
+    setEnrollFormSuccess('');
+    setShowEnrollModal(true);
+  };
+
+  const handleEnrollExistingStudent = async (e) => {
+    e.preventDefault();
+    setEnrollFormError('');
+    setEnrollFormSuccess('');
+
+    try {
+      if (!selectedStudentForEnroll || !selectedStudentForEnroll.id) {
+        setEnrollFormError('No student selected');
+        return;
+      }
+      if (!enrollFormData.course_id) {
+        setEnrollFormError('Please select a course');
+        return;
+      }
+      const amt = parseFloat(enrollFormData.total_amount || '0');
+      if (Number.isNaN(amt) || amt <= 0) {
+        setEnrollFormError('Please enter a valid total amount');
+        return;
+      }
+      if (enrollFormData.payment_mode === 'emi') {
+        if (!enrollFormData.installment_count || !enrollFormData.first_installment_date) {
+          setEnrollFormError('Please fill in all EMI details');
+          return;
+        }
+      }
+
+      const result = await AdminUsecase.enrollExistingStudentUsecase(
+        selectedStudentForEnroll.id,
+        enrollFormData
+      );
+
+      if (result.success) {
+        setEnrollFormSuccess('Student enrolled successfully!');
+        await fetchDashboardData();
+        setTimeout(() => {
+          setShowEnrollModal(false);
+          resetForms();
+        }, 1200);
+      } else {
+        setEnrollFormError(result.error || 'Failed to enroll student');
+      }
+    } catch (error) {
+      console.error('Error enrolling student:', error);
+      setEnrollFormError('An error occurred while enrolling the student');
+    }
   };
 
   const handleAddStudent = async (e) => {
@@ -397,17 +684,55 @@ const AdminDashboard = () => {
 
 
 
-  const handleEditCourse = (course) => {
-    setEditingCourse(course);
+  const handleEditCourse = async (course) => {
+    try {
+      setEditingCourse(course);
+      // Fetch full course details to ensure fields like image_url are present
+      const result = await AdminUsecase.getCourseByIdUsecase(course.id);
+      const fullCourse = result.success && result.course ? result.course : course;
+      setCourseFormData({
+        title: fullCourse.title || '',
+        description: fullCourse.description || '',
+        price: fullCourse.price || '',
+        duration: fullCourse.duration || '',
+        category: fullCourse.category || '',
+        level: (fullCourse.level || 'beginner'),
+        image_url: fullCourse.image_url || '',
+        is_active: fullCourse.is_active !== false
+      });
+      setShowEditCourseModal(true);
+    } catch (err) {
+      console.error('Edit course open error:', err);
+      // Fallback to existing course object
+      setCourseFormData({
+        title: course.title || '',
+        description: course.description || '',
+        price: course.price || '',
+        duration: course.duration || '',
+        category: course.category || '',
+        level: (course.level || 'beginner'),
+        image_url: course.image_url || '',
+        is_active: course.is_active !== false
+      });
+      setShowEditCourseModal(true);
+    }
+  };
+
+  const handleOpenAddCourse = () => {
+    setEditingCourse(null);
     setCourseFormData({
-      title: course.title || '',
-      description: course.description || '',
-      price: course.price || '',
-      duration: course.duration || '',
-      category: course.category || '',
-      is_active: course.is_active !== false
+      title: '',
+      description: '',
+      price: '',
+      duration: '',
+      category: '',
+      level: 'beginner',
+      image_url: '',
+      is_active: true
     });
-    setShowEditCourseModal(true);
+    setFormError('');
+    setFormSuccess('');
+    setShowAddCourseModal(true);
   };
 
   const handleUpdateCourse = async (e) => {
@@ -582,14 +907,28 @@ const AdminDashboard = () => {
             <Card>
               <Card.Header className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">Students Management</h5>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowAddStudentModal(true)}
-                >
-                  <FaPlus className="me-1" />
-                  Add Student
-                </Button>
+                <div className="d-flex align-items-center gap-2">
+                  <Form.Control
+                    type="text"
+                    placeholder="Search..."
+                    size="sm"
+                    value={searchStudents}
+                    onChange={(e) => setSearchStudents(e.target.value)}
+                    style={{ width: '220px' }}
+                  />
+                  <Button variant="outline-secondary" size="sm" onClick={handleExportStudents}>
+                    <FaFileExport className="me-1" />
+                    Export
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setShowAddStudentModal(true)}
+                  >
+                    <FaPlus className="me-1" />
+                    Add Student
+                  </Button>
+                </div>
               </Card.Header>
               <Card.Body>
                 <Table responsive hover>
@@ -604,7 +943,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {students.length > 0 ? students.map(student => (
+                    {getFilteredStudents() && getFilteredStudents().length > 0 ? getFilteredStudents().map(student => (
                       <tr key={student.id}>
                         <td>{student.id}</td>
                         <td>{student.full_name || student.name || 'N/A'}</td>
@@ -622,6 +961,14 @@ const AdminDashboard = () => {
                             onClick={() => navigate(`/admin/student/${student.id}`)}
                           >
                             View
+                          </Button>
+                          <Button
+                            variant="outline-success"
+                            size="sm"
+                            className="ms-2"
+                            onClick={() => handleOpenEnrollModal(student)}
+                          >
+                            Enroll
                           </Button>
                         </td>
                       </tr>
@@ -643,14 +990,28 @@ const AdminDashboard = () => {
             <Card>
               <Card.Header className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">Courses Management</h5>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => setShowAddCourseModal(true)}
-                >
-                  <FaPlus className="me-1" />
-                  Add Course
-                </Button>
+                <div className="d-flex align-items-center gap-2">
+                  <Form.Control
+                    type="text"
+                    placeholder="Search..."
+                    size="sm"
+                    value={searchCourses}
+                    onChange={(e) => setSearchCourses(e.target.value)}
+                    style={{ width: '220px' }}
+                  />
+                  <Button variant="outline-secondary" size="sm" onClick={handleExportCourses}>
+                    <FaFileExport className="me-1" />
+                    Export
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleOpenAddCourse}
+                  >
+                    <FaPlus className="me-1" />
+                    Add Course
+                  </Button>
+                </div>
               </Card.Header>
               <Card.Body>
                 <Table responsive hover>
@@ -665,7 +1026,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {courses.length > 0 ? courses.map(course => (
+                    {getFilteredCourses() && getFilteredCourses().length > 0 ? getFilteredCourses().map(course => (
                       <tr key={course.id}>
                         <td>{course.id}</td>
                         <td>{course.title}</td>
@@ -708,7 +1069,21 @@ const AdminDashboard = () => {
             <Card>
               <Card.Header className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">Enrollments Management</h5>
-                <Button variant="primary" size="sm">Add Enrollment</Button>
+                <div className="d-flex align-items-center gap-2">
+                  <Form.Control
+                    type="text"
+                    placeholder="Search..."
+                    size="sm"
+                    value={searchEnrollments}
+                    onChange={(e) => setSearchEnrollments(e.target.value)}
+                    style={{ width: '220px' }}
+                  />
+                  <Button variant="outline-secondary" size="sm" onClick={handleExportEnrollments}>
+                    <FaFileExport className="me-1" />
+                    Export
+                  </Button>
+                  <Button variant="primary" size="sm">Add Enrollment</Button>
+                </div>
               </Card.Header>
               <Card.Body>
                 <Table responsive hover>
@@ -724,7 +1099,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {enrollments.length > 0 ? enrollments.map(enrollment => (
+                    {getFilteredEnrollments() && getFilteredEnrollments().length > 0 ? getFilteredEnrollments().map(enrollment => (
                       <tr key={enrollment.id}>
                         <td>{enrollment.id}</td>
                         <td>{enrollment.student_name || enrollment.user_email || 'N/A'}</td>
@@ -838,8 +1213,22 @@ const AdminDashboard = () => {
           {/* Financial Tab */}
           <Tab.Pane eventKey="financial">
             <Card>
-              <Card.Header>
+              <Card.Header className="d-flex justify-content-between align-items-center">
                 <h5 className="mb-0">Pending Fees</h5>
+                <div className="d-flex align-items-center gap-2">
+                  <Form.Control
+                    type="text"
+                    placeholder="Search..."
+                    size="sm"
+                    value={searchFees}
+                    onChange={(e) => setSearchFees(e.target.value)}
+                    style={{ width: '220px' }}
+                  />
+                  <Button variant="outline-secondary" size="sm" onClick={handleExportPendingFees}>
+                    <FaFileExport className="me-1" />
+                    Export
+                  </Button>
+                </div>
               </Card.Header>
               <Card.Body>
                 <Table responsive hover>
@@ -855,8 +1244,8 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {pendingFees && pendingFees.length > 0 ? (
-                      pendingFees.map((fee) => {
+                    {getFilteredPendingFees() && getFilteredPendingFees().length > 0 ? (
+                      getFilteredPendingFees().map((fee) => {
                         const overdue = fee.status === 'overdue' || (fee.due_date && new Date(fee.due_date) < new Date());
                         return (
                           <tr key={fee.id}>
@@ -1172,6 +1561,217 @@ const AdminDashboard = () => {
       </Modal>
 
 
+      {/* Enroll Course Modal (existing student) */}
+      <Modal show={showEnrollModal} onHide={() => setShowEnrollModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>
+            Enroll Course{selectedStudentForEnroll ? ` — ${selectedStudentForEnroll.full_name || selectedStudentForEnroll.name || selectedStudentForEnroll.email}` : ''}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {enrollFormError && <Alert variant="danger">{enrollFormError}</Alert>}
+          {enrollFormSuccess && <Alert variant="success">{enrollFormSuccess}</Alert>}
+          <Form>
+            {/* Course Information */}
+            <h6 className="mb-3 text-primary">Course Information</h6>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Course to Enroll *</Form.Label>
+                  <Form.Select
+                    value={enrollFormData.course_id && enrollFormData.enrollment_mode ? `${enrollFormData.course_id}|${enrollFormData.enrollment_mode}` : ''}
+                    onChange={(e) => {
+                      if (e.target.value === '') {
+                        setEnrollFormData({
+                          ...enrollFormData,
+                          course_id: '',
+                          enrollment_mode: 'online',
+                          total_amount: ''
+                        });
+                        return;
+                      }
+                      const lastPipeIndex = e.target.value.lastIndexOf('|');
+                      const courseId = e.target.value.substring(0, lastPipeIndex);
+                      const enrollmentMode = e.target.value.substring(lastPipeIndex + 1);
+                      const selectedCourse = courses.find(c => c.id.toString() === courseId.toString());
+                      const coursePrice = selectedCourse?.price || '';
+                      setEnrollFormData({
+                        ...enrollFormData,
+                        course_id: courseId,
+                        enrollment_mode: enrollmentMode,
+                        total_amount: coursePrice.toString(),
+                        installment_amount: enrollFormData.payment_mode === 'emi' && enrollFormData.installment_count
+                          ? (coursePrice / enrollFormData.installment_count).toFixed(2)
+                          : ''
+                      });
+                    }}
+                    required
+                  >
+                    <option value="">Select a course and mode</option>
+                    {courses && courses.length > 0 ? courses.map(course => (
+                      <React.Fragment key={course.id}>
+                        <option value={`${course.id}|online`}>
+                          {course.title} - Online - ₹{course.price}
+                        </option>
+                        <option value={`${course.id}|offline`}>
+                          {course.title} - Offline - ₹{course.price}
+                        </option>
+                      </React.Fragment>
+                    )) : (
+                      <option disabled>Loading courses...</option>
+                    )}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                {enrollFormData.course_id && (
+                  <div className="mt-3 p-3 bg-light rounded">
+                    <h6 className="text-primary mb-2">Selected Course Details</h6>
+                    <div className="mb-1">
+                      <strong>Course Name:</strong> {
+                        courses.find(c => c.id.toString() === enrollFormData.course_id.toString())?.title || 'Course not found'
+                      }
+                    </div>
+                    <div className="mb-1">
+                      <strong>Enrollment Mode:</strong> {
+                        enrollFormData.enrollment_mode ?
+                          enrollFormData.enrollment_mode.charAt(0).toUpperCase() + enrollFormData.enrollment_mode.slice(1) :
+                          'Not selected'
+                      }
+                    </div>
+                  </div>
+                )}
+              </Col>
+            </Row>
+
+            {/* Payment Information */}
+            <h6 className="mb-3 text-primary mt-4">Payment Information</h6>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Payment Mode *</Form.Label>
+                  <Form.Select
+                    value={enrollFormData.payment_mode}
+                    onChange={(e) => {
+                      const paymentMode = e.target.value;
+                      setEnrollFormData({
+                        ...enrollFormData,
+                        payment_mode: paymentMode,
+                        installment_count: paymentMode === 'emi' ? (enrollFormData.installment_count || 3) : 3,
+                        installment_amount: paymentMode === 'emi' && enrollFormData.total_amount && enrollFormData.installment_count
+                          ? (enrollFormData.total_amount / enrollFormData.installment_count).toFixed(2)
+                          : '',
+                        first_installment_date: ''
+                      });
+                    }}
+                    required
+                  >
+                    <option value="full">Full Payment</option>
+                    <option value="emi">EMI (Installments)</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Total Amount (₹) *</Form.Label>
+                  <Form.Control
+                    type="number"
+                    value={enrollFormData.total_amount}
+                    onChange={(e) => {
+                      const totalAmount = e.target.value;
+                      setEnrollFormData({
+                        ...enrollFormData,
+                        total_amount: totalAmount,
+                        installment_amount: enrollFormData.payment_mode === 'emi' && enrollFormData.installment_count
+                          ? (totalAmount / enrollFormData.installment_count).toFixed(2)
+                          : ''
+                      });
+                    }}
+                    placeholder="Enter total amount"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            {/* EMI Details - Show only when EMI is selected */}
+            {enrollFormData.payment_mode === 'emi' && (
+              <Row>
+                <Col md={4}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>EMI Duration (Months) *</Form.Label>
+                    <Form.Select
+                      value={enrollFormData.installment_count}
+                      onChange={(e) => {
+                        const installmentCount = e.target.value;
+                        setEnrollFormData({
+                          ...enrollFormData,
+                          installment_count: installmentCount,
+                          installment_amount: enrollFormData.total_amount && installmentCount
+                            ? (enrollFormData.total_amount / installmentCount).toFixed(2)
+                            : ''
+                        });
+                      }}
+                      required
+                    >
+                      <option value="">Select Months</option>
+                      <option value="1">1 Month</option>
+                      <option value="2">2 Months</option>
+                      <option value="3">3 Months</option>
+                      <option value="4">4 Months</option>
+                      <option value="5">5 Months</option>
+                      <option value="6">6 Months</option>
+                      <option value="7">7 Months</option>
+                      <option value="8">8 Months</option>
+                      <option value="9">9 Months</option>
+                      <option value="10">10 Months</option>
+                      <option value="11">11 Months</option>
+                      <option value="12">12 Months</option>
+                      <option value="15">15 Months</option>
+                      <option value="18">18 Months</option>
+                      <option value="24">24 Months</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+                <Col md={4}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>Installment Amount (₹) *</Form.Label>
+                    <Form.Control
+                      type="number"
+                      value={enrollFormData.installment_amount}
+                      onChange={(e) => setEnrollFormData({ ...enrollFormData, installment_amount: e.target.value })}
+                      placeholder="Auto-calculated"
+                      required
+                      readOnly
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={4}>
+                  <Form.Group className="mb-3">
+                    <Form.Label>First Installment Date *</Form.Label>
+                    <Form.Control
+                      type="date"
+                      value={enrollFormData.first_installment_date}
+                      onChange={(e) => setEnrollFormData({ ...enrollFormData, first_installment_date: e.target.value })}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+            )}
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEnrollModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleEnrollExistingStudent} disabled={!selectedStudentForEnroll}>
+            Enroll Course
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+
 
       {/* Add Course Modal */}
       <Modal show={showAddCourseModal} onHide={() => setShowAddCourseModal(false)} size="lg">
@@ -1223,11 +1823,43 @@ const AdminDashboard = () => {
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Category</Form.Label>
-                  <Form.Control
-                    type="text"
+                  <Form.Select
                     value={courseFormData.category}
                     onChange={(e) => setCourseFormData({ ...courseFormData, category: e.target.value })}
-                    placeholder="e.g., Programming, Design"
+                    required
+                  >
+                    <option value="">Select category</option>
+                    {courseCategoryOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                    {courseFormData.category && !courseCategoryOptions.some(opt => opt.value === courseFormData.category) && (
+                      <option value={courseFormData.category}>{courseFormData.category}</option>
+                    )}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Level</Form.Label>
+                  <Form.Select
+                    value={courseFormData.level}
+                    onChange={(e) => setCourseFormData({ ...courseFormData, level: e.target.value })}
+                    required
+                  >
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Image URL</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={courseFormData.image_url}
+                    onChange={(e) => setCourseFormData({ ...courseFormData, image_url: e.target.value })}
+                    placeholder="https://example.com/image.jpg"
                   />
                 </Form.Group>
               </Col>
@@ -1312,11 +1944,43 @@ const AdminDashboard = () => {
               <Col md={6}>
                 <Form.Group className="mb-3">
                   <Form.Label>Category</Form.Label>
-                  <Form.Control
-                    type="text"
+                  <Form.Select
                     value={courseFormData.category}
                     onChange={(e) => setCourseFormData({ ...courseFormData, category: e.target.value })}
-                    placeholder="e.g., Programming, Design"
+                    required
+                  >
+                    <option value="">Select category</option>
+                    {courseCategoryOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                    {courseFormData.category && !courseCategoryOptions.some(opt => opt.value === courseFormData.category) && (
+                      <option value={courseFormData.category}>{courseFormData.category}</option>
+                    )}
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Level</Form.Label>
+                  <Form.Select
+                    value={courseFormData.level}
+                    onChange={(e) => setCourseFormData({ ...courseFormData, level: e.target.value })}
+                    required
+                  >
+                    <option value="beginner">Beginner</option>
+                    <option value="intermediate">Intermediate</option>
+                    <option value="advanced">Advanced</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Image URL</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={courseFormData.image_url}
+                    onChange={(e) => setCourseFormData({ ...courseFormData, image_url: e.target.value })}
+                    placeholder="https://example.com/image.jpg"
                   />
                 </Form.Group>
               </Col>

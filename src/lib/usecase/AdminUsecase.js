@@ -5,6 +5,7 @@
  */
 
 import AdminDatasource from '../datasource/AdminDatasource';
+import StudentDatasource from '../datasource/StudentDatasource';
 import { toast } from 'react-toastify';
 
 export class AdminUsecase {
@@ -248,6 +249,23 @@ export class AdminUsecase {
   }
 
   /**
+   * Get course by ID usecase
+   */
+  static async getCourseByIdUsecase(courseId) {
+    try {
+      const result = await AdminDatasource.getCourseById(courseId);
+      if (result.success) {
+        return { success: true, course: result.course };
+      }
+      throw new Error('Failed to fetch course');
+    } catch (error) {
+      console.error('Get course by id usecase error:', error);
+      toast.error(error.message || 'Failed to fetch course');
+      return { success: false, course: null, error: error.message };
+    }
+  }
+
+  /**
    * Get financial statistics usecase
    */
   static async getFinancialStatsUsecase() {
@@ -353,6 +371,60 @@ export class AdminUsecase {
         success: false,
         error: error.message || 'Failed to add student'
       };
+    }
+  }
+
+  /**
+   * Enroll existing student into a course (admin flow)
+   * Hides personal details; only course and payment info are required
+   */
+  static async enrollExistingStudentUsecase(studentId, formData) {
+    try {
+      if (!studentId) {
+        throw new Error('Student ID is required');
+      }
+      if (!formData || !formData.course_id) {
+        throw new Error('Course selection is required');
+      }
+
+      // Validate payment inputs
+      const totalAmount = parseFloat(formData.total_amount || '0');
+      if (Number.isNaN(totalAmount) || totalAmount <= 0) {
+        throw new Error('Please enter a valid total amount');
+      }
+
+      if (formData.payment_mode === 'emi') {
+        if (!formData.installment_count || !formData.first_installment_date) {
+          throw new Error('Please fill in all EMI details');
+        }
+      }
+
+      // Map to enrollment payload expected by StudentDatasource
+      const enrollmentPayload = {
+        enrollment_mode: formData.enrollment_mode || 'online',
+        price_paid: totalAmount,
+        payment_type: formData.payment_mode || 'full',
+        emi_months: formData.installment_count ? parseInt(formData.installment_count, 10) : undefined,
+        first_installment_date: formData.first_installment_date || undefined,
+      };
+
+      const result = await StudentDatasource.enrollCourse(
+        studentId,
+        formData.course_id,
+        enrollmentPayload,
+        false // firstPaid: admin flow does not auto-mark first payment
+      );
+
+      if (result.error) {
+        throw new Error(result.error.message || 'Failed to enroll student');
+      }
+
+      toast.success('Student enrolled successfully');
+      return { success: true, enrollment: result.data };
+    } catch (error) {
+      console.error('Enroll existing student usecase error:', error);
+      toast.error(error.message || 'Failed to enroll student');
+      return { success: false, error: error.message || 'Failed to enroll student' };
     }
   }
 

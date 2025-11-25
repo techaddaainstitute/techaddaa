@@ -50,7 +50,7 @@ export class AdminDatasource {
       }
 
       console.log('✅ Admin login successful');
-      
+
       return {
         success: true,
         user: {
@@ -131,7 +131,7 @@ export class AdminDatasource {
   static async getAdminSession() {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+
       if (error) {
         throw new Error(error.message);
       }
@@ -176,14 +176,14 @@ export class AdminDatasource {
   static async adminLogout(sessionToken) {
     try {
       console.log('🔐 AdminDatasource: Logging out admin');
-      
+
       if (sessionToken) {
         // Invalidate the session in the database
         const { error } = await supabase
           .from('admin_sessions')
           .delete()
           .eq('session_token', sessionToken);
-        
+
         if (error) {
           console.warn('⚠️ Failed to invalidate session:', error);
         }
@@ -486,6 +486,7 @@ export class AdminDatasource {
           title,
           description,
           category,
+          image_url,
           level,
           duration,
           price,
@@ -534,6 +535,28 @@ export class AdminDatasource {
   }
 
   /**
+   * Get a single course by ID (admin)
+   */
+  static async getCourseById(courseId) {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('*')
+        .eq('id', courseId)
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true, course: data };
+    } catch (error) {
+      console.error('❌ AdminDatasource get course by id error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get financial statistics for admin dashboard
    */
   static async getFinancialStats() {
@@ -571,14 +594,14 @@ export class AdminDatasource {
 
       // Calculate financial statistics
       const fees = feesData || [];
-      
+
       // Debug logging
       console.log('🔍 Total fees records:', fees.length);
       const uniqueStatuses = [...new Set(fees.map(fee => fee.status))];
       console.log('🏷️ Unique status values:', uniqueStatuses);
       const paidFees = fees.filter(fee => fee.status === 'paid');
       console.log('💰 Paid fees count:', paidFees.length);
-      
+
       const totalRevenue = fees
         .filter(fee => fee.status === 'paid')
         .reduce((sum, fee) => sum + (fee.installment_amount || 0), 0);
@@ -604,7 +627,7 @@ export class AdminDatasource {
           const isPaid = fee.status === 'paid';
           const dateToCheck = new Date(fee.created_at || fee.paid_date || new Date());
           const isRecent = dateToCheck >= thirtyDaysAgo;
-          
+
           // Debug logging for first few records
           if (fees.indexOf(fee) < 3) {
             console.log(`🔍 Record ${fees.indexOf(fee) + 1}:`, {
@@ -618,7 +641,7 @@ export class AdminDatasource {
               willInclude: isPaid && isRecent
             });
           }
-          
+
           return isPaid && isRecent;
         })
         .sort((a, b) => new Date(b.paid_date || b.created_at) - new Date(a.paid_date || a.created_at)) // Sort by date descending
@@ -633,7 +656,7 @@ export class AdminDatasource {
             second: '2-digit',
             hour12: true
           });
-          
+
           return {
             id: fee.id,
             transaction_id: fee.transaction_id || `TXN${fee.id.slice(-8)}`,
@@ -706,7 +729,7 @@ export class AdminDatasource {
     try {
       const { error } = await supabase
         .from('user_profiles')
-        .update({ 
+        .update({
           updated_at: new Date().toISOString()
         })
         .eq('id', studentId)
@@ -924,7 +947,7 @@ export class AdminDatasource {
       // Generate a UUID for the student (without auth signup)
       const studentId = crypto.randomUUID();
       console.log('🆔 Generated student ID:', studentId);
-      
+
       // Create the user profile directly (bypassing auth system)
       console.log('🔄 Attempting to create user profile directly...');
       const profileData = {
@@ -953,11 +976,11 @@ export class AdminDatasource {
         if (userError.message.includes('user_profiles_phone_number_key')) {
           throw new Error(`A user with phone number ${mappedData.phone_number} already exists in the system`);
         }
-        
+
         // If insert fails, try to update (profile might already exist from trigger)
         console.log('❌ Profile insert failed, trying update:', userError);
         console.log('🔄 Attempting to update existing profile...');
-        
+
         const updateData = {
           full_name: mappedData.full_name || '',
           phone_number: mappedData.phone_number.trim(), // Ensure NOT NULL constraint is met
@@ -981,7 +1004,7 @@ export class AdminDatasource {
           });
           throw new Error(`Profile creation failed: ${updateError.message}`);
         }
-        
+
         console.log('✅ Profile updated successfully:', updatedData);
         userData = updatedData;
       } else {
@@ -1014,13 +1037,13 @@ export class AdminDatasource {
           console.error('❌ Enrollment creation failed:', enrollmentError);
           throw new Error(`Student created but enrollment failed: ${enrollmentError.message}`);
         }
-        
+
         console.log('✅ Enrollment created successfully');
 
         // Create fee records for the enrollment
         if (enrollmentResult && (mappedData.price_paid > 0 || mappedData.payment_type)) {
           console.log('🔄 Attempting to create fee records...');
-          
+
           // Get course data for fee creation
           const { data: courseData, error: courseError } = await supabase
             .from('courses')
@@ -1054,7 +1077,7 @@ export class AdminDatasource {
                   dueDate.setMonth(baseDueDate.getMonth() + i - 1);
 
                   const isFirstInstallment = i === 1;
-                  
+
                   feeRecords.push({
                     user_id: userData.id,
                     course_id: mappedData.course_id,
@@ -1121,8 +1144,8 @@ export class AdminDatasource {
       }
 
       console.log('🎉 Student creation completed successfully!');
-      return { 
-        success: true, 
+      return {
+        success: true,
         student: userData,
         message: 'Student created successfully without authentication credentials'
       };
@@ -1149,9 +1172,11 @@ export class AdminDatasource {
           title: courseData.title,
           description: courseData.description || '',
           category: courseData.category || 'General',
-          level: courseData.level || 'Beginner',
+          // Must be one of: 'beginner', 'intermediate', 'advanced'
+          level: (courseData.level || 'beginner'),
           duration: courseData.duration || '0',
           price: parseFloat(courseData.price) || 0,
+          image_url: courseData.image_url || '',
           is_active: courseData.is_active !== false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -1213,9 +1238,11 @@ export class AdminDatasource {
           title: courseData.title,
           description: courseData.description || '',
           category: courseData.category || 'General',
-          level: courseData.level || 'Beginner',
+          // Must be one of: 'beginner', 'intermediate', 'advanced'
+          level: (courseData.level || 'beginner'),
           duration: courseData.duration || '0',
           price: parseFloat(courseData.price) || 0,
+          image_url: courseData.image_url || '',
           is_active: courseData.is_active !== false,
           updated_at: new Date().toISOString()
         })
