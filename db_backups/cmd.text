@@ -1,0 +1,7 @@
+pg_dump -F p "postgresql://postgres:Techaddaa%402024@db.xambfjdpmqksypzqygza.supabase.co:5432/postgres" > "F:\Trae\techaddaa\db_backups\techaddaa_backup07122025.sql"
+
+set PGPASSWORD=root
+psql -U postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='techaddaa_backup';"
+psql -U postgres -c "DROP DATABASE IF EXISTS techaddaa_backup;"
+psql -U postgres -c "CREATE DATABASE techaddaa_backup;"
+psql -U postgres -d techaddaa_backup -f "F:\Trae\techaddaa\db_backups\techaddaa_backup07122025.sql"

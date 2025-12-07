@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Nav, Tab, Modal, Form, Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { FaSignOutAlt, FaKey, FaUser, FaRupeeSign, FaClock, FaCreditCard, FaMoneyBillWave, FaPlus, FaEdit, FaCalendarAlt, FaSearch, FaFileExport } from 'react-icons/fa';
+import { FaSignOutAlt, FaKey, FaUser, FaRupeeSign, FaClock, FaCreditCard, FaMoneyBillWave, FaPlus, FaEdit, FaCalendarAlt, FaSearch, FaFileExport, FaPhoneAlt, FaWhatsapp } from 'react-icons/fa';
 import AdminUsecase from '../../lib/usecase/AdminUsecase';
+import StudentAttendacne from './StudentAttendacne';
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('attendance');
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalCourses: 0,
@@ -77,6 +78,20 @@ const AdminDashboard = () => {
   });
 
   const [editingCourse, setEditingCourse] = useState(null);
+
+  // Build phone links for dial and WhatsApp with basic sanitation
+  const buildContactLinks = (raw) => {
+    if (!raw) return { telHref: null, waHref: null };
+    const digits = String(raw).replace(/[^\d+]/g, '');
+    const telHref = digits ? `tel:${digits}` : null;
+    let waDigits = digits.replace(/\+/g, '');
+    if (/^\d{10}$/.test(waDigits)) {
+      // Assume India if 10-digit local number
+      waDigits = `91${waDigits}`;
+    }
+    const waHref = /^\d{11,15}$/.test(waDigits) ? `https://wa.me/${waDigits}` : null;
+    return { telHref, waHref };
+  };
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [accountFormError, setAccountFormError] = useState('');
@@ -86,6 +101,8 @@ const AdminDashboard = () => {
   const [searchCourses, setSearchCourses] = useState('');
   const [searchEnrollments, setSearchEnrollments] = useState('');
   const [searchFees, setSearchFees] = useState('');
+
+  // Attendance moved to StudentAttendacne component
 
   // Course categories (same values as src/pages/Courses.js#L19-28)
   const courseCategoryOptions = [
@@ -104,7 +121,7 @@ const AdminDashboard = () => {
     if (!dateStr) return '—';
     const d = new Date(dateStr);
     if (isNaN(d)) return '—';
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   };
 
@@ -124,7 +141,7 @@ const AdminDashboard = () => {
   const handleExportAccounts = () => {
     try {
       const data = getFilteredAccounts();
-      const header = ['Description','Amount','Type','Transaction Date','Balance'];
+      const header = ['Description', 'Amount', 'Type', 'Transaction Date', 'Balance'];
       const rows = data.map((r) => [
         r.description ?? '',
         Number(r.amount ?? 0),
@@ -140,7 +157,7 @@ const AdminDashboard = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `accounts_${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `accounts_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -166,7 +183,7 @@ const AdminDashboard = () => {
   const handleExportStudents = () => {
     try {
       const data = getFilteredStudents();
-      const header = ['ID','Name','Email','Course','Status'];
+      const header = ['ID', 'Name', 'Email', 'Course', 'Status'];
       const rows = (data || []).map((s) => [
         s.id ?? '',
         s.full_name || s.name || '',
@@ -182,7 +199,7 @@ const AdminDashboard = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `students_${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `students_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -208,7 +225,7 @@ const AdminDashboard = () => {
   const handleExportCourses = () => {
     try {
       const data = getFilteredCourses();
-      const header = ['ID','Course Title','Students','Price','Status'];
+      const header = ['ID', 'Course Title', 'Students', 'Price', 'Status'];
       const rows = (data || []).map((c) => [
         c.id ?? '',
         c.title || '',
@@ -224,7 +241,7 @@ const AdminDashboard = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `courses_${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `courses_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -251,7 +268,7 @@ const AdminDashboard = () => {
   const handleExportEnrollments = () => {
     try {
       const data = getFilteredEnrollments();
-      const header = ['ID','Student','Course','Enrollment Date','Progress','Status'];
+      const header = ['ID', 'Student', 'Course', 'Enrollment Date', 'Progress', 'Status'];
       const rows = (data || []).map((e) => [
         e.id ?? '',
         e.student_name || e.user_email || '',
@@ -268,7 +285,7 @@ const AdminDashboard = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `enrollments_${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `enrollments_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -297,7 +314,7 @@ const AdminDashboard = () => {
   const handleExportPendingFees = () => {
     try {
       const data = getFilteredPendingFees();
-      const header = ['Student','Course','Installment','Amount','Due Date','Status'];
+      const header = ['Student', 'Course', 'Installment', 'Amount', 'Due Date', 'Status'];
       const rows = (data || []).map((f) => {
         const overdue = f.status === 'overdue' || (f.due_date && new Date(f.due_date) < new Date());
         return [
@@ -317,7 +334,7 @@ const AdminDashboard = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `pending_fees_${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `pending_fees_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -392,6 +409,8 @@ const AdminDashboard = () => {
       });
     }
   };
+
+  // Attendance handlers are encapsulated in StudentAttendacne
 
   const handleMarkFeeDone = async (feeId) => {
     try {
@@ -779,27 +798,21 @@ const AdminDashboard = () => {
   return (
     <Container fluid>
       {/* Header */}
-      <Row className="bg-primary text-white py-3 mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
+      <Row className=" text-white  mb-4 mt-3">
+        <Col className='bg-primary'>
+          <div className="d-flex justify-content-between align-items-center " >
             <div>
               <h2 className="mb-0">Admin Dashboard</h2>
-              {adminUser && (
-                <small className="text-light">
-                  <FaUser className="me-1" />
-                  Welcome, {adminUser.full_name || adminUser.email}
-                </small>
-              )}
             </div>
             <div className="d-flex gap-2">
-              <Button
+              {/* <Button
                 variant="outline-light"
                 size="sm"
                 onClick={handleChangePassword}
               >
                 <FaKey className="me-1" />
                 Change Password
-              </Button>
+              </Button> */}
               <Button variant="outline-light" size="sm" onClick={handleLogout}>
                 <FaSignOutAlt className="me-1" />
                 Logout
@@ -851,9 +864,6 @@ const AdminDashboard = () => {
       <Tab.Container activeKey={activeTab} onSelect={setActiveTab}>
         <Nav variant="tabs" className="mb-4">
           <Nav.Item>
-            <Nav.Link eventKey="overview">Overview</Nav.Link>
-          </Nav.Item>
-          <Nav.Item>
             <Nav.Link eventKey="students">Students</Nav.Link>
           </Nav.Item>
           <Nav.Item>
@@ -868,38 +878,15 @@ const AdminDashboard = () => {
           <Nav.Item>
             <Nav.Link eventKey="accounts">Accounts</Nav.Link>
           </Nav.Item>
+          <Nav.Item>
+            <Nav.Link eventKey="attendance">Attendance</Nav.Link>
+          </Nav.Item>
         </Nav>
 
         <Tab.Content>
-          {/* Overview Tab */}
-          <Tab.Pane eventKey="overview">
-            <Row>
-              <Col md={8}>
-                <Card>
-                  <Card.Header>
-                    <h5 className="mb-0">Recent Activity</h5>
-                  </Card.Header>
-                  <Card.Body>
-                    <p className="text-muted">Recent enrollments and course activities will be displayed here.</p>
-                    {/* TODO: Add recent activity component */}
-                  </Card.Body>
-                </Card>
-              </Col>
-              <Col md={4}>
-                <Card>
-                  <Card.Header>
-                    <h5 className="mb-0">Quick Actions</h5>
-                  </Card.Header>
-                  <Card.Body>
-                    <div className="d-grid gap-2">
-                      <Button variant="primary">Add New Course</Button>
-                      <Button variant="outline-primary">Manage Students</Button>
-                      <Button variant="outline-primary">View Reports</Button>
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-            </Row>
+          {/* Attendance Tab */}
+          <Tab.Pane eventKey="attendance">
+            <StudentAttendacne students={students} />
           </Tab.Pane>
 
           {/* Students Tab */}
@@ -938,6 +925,7 @@ const AdminDashboard = () => {
                       <th>Name</th>
                       <th>Email</th>
                       <th>Course</th>
+                      <th>Contact</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -948,7 +936,44 @@ const AdminDashboard = () => {
                         <td>{student.id}</td>
                         <td>{student.full_name || student.name || 'N/A'}</td>
                         <td>{student.email}</td>
-                        <td>{student.course_title || 'N/A'}</td>
+                        <td>{student.course_title || student.latest_course || 'N/A'}</td>
+                        <td>
+                          {(() => {
+                            const { telHref, waHref } = buildContactLinks(student.phone_number);
+                            return (
+                              <div className="d-flex align-items-center gap-2">
+                                {telHref ? (
+                                  <a
+                                    href={telHref}
+                                    className="btn btn-outline-primary btn-sm"
+                                    title="Call"
+                                  >
+                                    <FaPhoneAlt />
+                                  </a>
+                                ) : (
+                                  <span className="text-muted" title="No phone">
+                                    <FaPhoneAlt />
+                                  </span>
+                                )}
+                                {waHref ? (
+                                  <a
+                                    href={waHref}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn btn-outline-success btn-sm"
+                                    title="WhatsApp"
+                                  >
+                                    <FaWhatsapp />
+                                  </a>
+                                ) : (
+                                  <span className="text-muted" title="Invalid WhatsApp number">
+                                    <FaWhatsapp />
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td>
                           <Badge bg={student.is_active ? 'success' : 'secondary'}>
                             {student.is_active ? 'Active' : 'Inactive'}
@@ -974,7 +999,7 @@ const AdminDashboard = () => {
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan="6" className="text-center text-muted">
+                        <td colSpan="7" className="text-center text-muted">
                           {loading ? 'Loading students...' : 'No students found'}
                         </td>
                       </tr>
@@ -1028,7 +1053,7 @@ const AdminDashboard = () => {
                   <tbody>
                     {getFilteredCourses() && getFilteredCourses().length > 0 ? getFilteredCourses().map(course => (
                       <tr key={course.id}>
-                        <td>{course.id}</td>
+                        <td><a href={course.image_url} ><img src={course.image_url} height="50px" /></a></td>
                         <td>{course.title}</td>
                         <td>{course.enrollment_count || 0}</td>
                         <td>₹{course.price ? course.price.toLocaleString() : 'N/A'}</td>
@@ -1240,6 +1265,7 @@ const AdminDashboard = () => {
                       <th>Amount</th>
                       <th>Due Date</th>
                       <th>Status</th>
+                      <th>Contact</th>
                       <th>Action</th>
                     </tr>
                   </thead>
@@ -1258,6 +1284,64 @@ const AdminDashboard = () => {
                               <Badge bg={overdue ? 'danger' : 'warning'}>{overdue ? 'Overdue' : 'Pending'}</Badge>
                             </td>
                             <td>
+                              {(() => {
+                                const { telHref, waHref } = buildContactLinks(fee.phone_number);
+                                return (
+                                  <div className="d-flex align-items-center gap-2">
+                                    {telHref ? (
+                                      <a
+                                        href={telHref}
+                                        className="btn btn-outline-primary btn-sm"
+                                        title="Call"
+                                      >
+                                        <FaPhoneAlt />
+                                      </a>
+                                    ) : (
+                                      <span className="text-muted" title="No phone">
+                                        <FaPhoneAlt />
+                                      </span>
+                                    )}
+                                    {waHref ? (
+                                      <a
+                                        href={waHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn btn-outline-success btn-sm"
+                                        title="WhatsApp"
+                                      >
+                                        <FaWhatsapp />
+                                      </a>
+                                    ) : (
+                                      <span className="text-muted" title="Invalid WhatsApp number">
+                                        <FaWhatsapp />
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                              {/* {(() => {
+                                const { telHref, waHref } = buildContactLinks(fee.phone_number);
+                                return (
+                                  <div className="d-flex align-items-center gap-2">
+                                    {telHref ? (
+                                      <a href={telHref} className="text-primary" title="Call">
+                                        <FaPhoneAlt />
+                                      </a>
+                                    ) : (
+                                      <FaPhoneAlt className="text-muted" title="No phone" />
+                                    )}
+                                    {waHref ? (
+                                      <a href={waHref} target="_blank" rel="noopener noreferrer" className="text-success" title="WhatsApp">
+                                        <FaWhatsapp />
+                                      </a>
+                                    ) : (
+                                      <FaWhatsapp className="text-muted" title="No WhatsApp" />
+                                    )}
+                                  </div>
+                                );
+                              })()} */}
+                            </td>
+                            <td>
                               <Button size="sm" variant="success" onClick={() => handleMarkFeeDone(fee.id)}>Mark Done</Button>
                             </td>
                           </tr>
@@ -1265,7 +1349,7 @@ const AdminDashboard = () => {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="7" className="text-center text-muted">
+                        <td colSpan="8" className="text-center text-muted">
                           {loading ? 'Loading pending fees...' : 'No pending fees'}
                         </td>
                       </tr>

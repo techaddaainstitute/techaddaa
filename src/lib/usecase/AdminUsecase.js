@@ -37,9 +37,9 @@ export class AdminUsecase {
         localStorage.setItem('adminUser', JSON.stringify(result.user));
         localStorage.setItem('adminSessionToken', result.sessionToken);
         localStorage.setItem('adminSessionExpiry', result.expiresAt);
-        
+
         toast.success('Admin login successful!');
-        
+
         return {
           success: true,
           user: result.user,
@@ -54,13 +54,51 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Admin login usecase error:', error);
       toast.error(error.message || 'Login failed');
-      
+
       return {
         success: false,
         error: error.message || 'Login failed',
         user: null,
         sessionToken: null
       };
+    }
+  }
+
+  // ==================== ATTENDANCE ====================
+  /**
+   * Get attendance by date
+   */
+  static async getAttendanceByDateUsecase(date) {
+    try {
+      if (!date) {
+        throw new Error('Attendance date is required');
+      }
+      const { attendance, error } = await AdminDatasource.getAttendanceByDate(date);
+      if (error) throw error;
+      return { success: true, attendance };
+    } catch (error) {
+      console.error('Attendance fetch error:', error);
+      toast.error(error.message || 'Failed to load attendance');
+      return { success: false, error: error.message || 'Failed to load attendance', attendance: [] };
+    }
+  }
+
+  /**
+   * Upsert attendance for a user on a date
+   */
+  static async upsertAttendanceUsecase(userId, date, payload) {
+    try {
+      if (!userId || !date) {
+        throw new Error('User and date are required');
+      }
+      const { attendance, error } = await AdminDatasource.upsertAttendance(userId, date, payload || {});
+      if (error) throw error;
+      toast.success('Attendance saved');
+      return { success: true, attendance };
+    } catch (error) {
+      console.error('Attendance upsert error:', error);
+      toast.error(error.message || 'Failed to save attendance');
+      return { success: false, error: error.message || 'Failed to save attendance' };
     }
   }
 
@@ -71,15 +109,15 @@ export class AdminUsecase {
     try {
       const sessionToken = localStorage.getItem('adminSessionToken');
       const result = await AdminDatasource.adminLogout(sessionToken);
-      
+
       if (result.success) {
         // Clear local storage
         localStorage.removeItem('adminSessionToken');
         localStorage.removeItem('adminUser');
         localStorage.removeItem('adminSessionExpiry');
-        
+
         toast.success('Logged out successfully');
-        
+
         return {
           success: true,
           message: 'Logout successful'
@@ -91,7 +129,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Admin logout usecase error:', error);
       toast.error(error.message || 'Logout failed');
-      
+
       return {
         success: false,
         error: error.message || 'Logout failed'
@@ -136,7 +174,7 @@ export class AdminUsecase {
 
       if (result.success) {
         toast.success('Password changed successfully!');
-        
+
         return {
           success: true,
           message: 'Password changed successfully'
@@ -148,7 +186,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Change password usecase error:', error);
       toast.error(error.message || 'Password change failed');
-      
+
       return {
         success: false,
         error: error.message || 'Password change failed'
@@ -164,7 +202,7 @@ export class AdminUsecase {
   static async getAllStudentsUsecase() {
     try {
       const result = await AdminDatasource.getAllStudents();
-      
+
       if (result.success) {
         return {
           success: true,
@@ -178,7 +216,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Get students usecase error:', error);
       toast.error(error.message || 'Failed to fetch students');
-      
+
       return {
         success: false,
         students: [],
@@ -194,7 +232,7 @@ export class AdminUsecase {
   static async getAllEnrollmentsUsecase() {
     try {
       const result = await AdminDatasource.getAllEnrollments();
-      
+
       if (result.success) {
         return {
           success: true,
@@ -208,7 +246,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Get enrollments usecase error:', error);
       toast.error(error.message || 'Failed to fetch enrollments');
-      
+
       return {
         success: false,
         enrollments: [],
@@ -224,7 +262,7 @@ export class AdminUsecase {
   static async getAllCoursesUsecase() {
     try {
       const result = await AdminDatasource.getAllCourses();
-      
+
       if (result.success) {
         return {
           success: true,
@@ -238,7 +276,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Get courses usecase error:', error);
       toast.error(error.message || 'Failed to fetch courses');
-      
+
       return {
         success: false,
         courses: [],
@@ -271,7 +309,7 @@ export class AdminUsecase {
   static async getFinancialStatsUsecase() {
     try {
       const result = await AdminDatasource.getFinancialStats();
-      
+
       if (result.success) {
         return {
           success: true,
@@ -284,7 +322,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Get financial stats usecase error:', error);
       // Don't show toast error for financial stats as it's not critical
-      
+
       return {
         success: false,
         totalRevenue: 0,
@@ -310,11 +348,11 @@ export class AdminUsecase {
       }
 
       const result = await AdminDatasource.updateStudentStatus(studentId, isActive);
-      
+
       if (result.success) {
         const action = isActive ? 'activated' : 'deactivated';
         toast.success(`Student ${action} successfully!`);
-        
+
         return {
           success: true,
           message: `Student ${action} successfully`
@@ -326,7 +364,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Update student status usecase error:', error);
       toast.error(error.message || 'Failed to update student status');
-      
+
       return {
         success: false,
         error: error.message || 'Failed to update student status'
@@ -349,10 +387,10 @@ export class AdminUsecase {
       }
 
       const result = await AdminDatasource.addStudentWithEnrollment(studentData);
-      
+
       if (result.success) {
         toast.success(`Student added successfully! Temporary password: ${result.tempPassword}`);
-        
+
         return {
           success: true,
           student: result.student,
@@ -366,7 +404,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Add student with enrollment usecase error:', error);
       toast.error(error.message || 'Failed to add student');
-      
+
       return {
         success: false,
         error: error.message || 'Failed to add student'
@@ -443,10 +481,10 @@ export class AdminUsecase {
       }
 
       const result = await AdminDatasource.addCourse(courseData);
-      
+
       if (result.success) {
         toast.success('Course added successfully!');
-        
+
         return {
           success: true,
           course: result.course,
@@ -459,7 +497,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Add course usecase error:', error);
       toast.error(error.message || 'Failed to add course');
-      
+
       return {
         success: false,
         error: error.message || 'Failed to add course'
@@ -486,10 +524,10 @@ export class AdminUsecase {
       }
 
       const result = await AdminDatasource.updateStudent(studentId, studentData);
-      
+
       if (result.success) {
         toast.success('Student updated successfully!');
-        
+
         return {
           success: true,
           student: result.student,
@@ -502,7 +540,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Update student usecase error:', error);
       toast.error(error.message || 'Failed to update student');
-      
+
       return {
         success: false,
         error: error.message || 'Failed to update student'
@@ -529,10 +567,10 @@ export class AdminUsecase {
       }
 
       const result = await AdminDatasource.updateCourse(courseId, courseData);
-      
+
       if (result.success) {
         toast.success('Course updated successfully!');
-        
+
         return {
           success: true,
           course: result.course,
@@ -545,7 +583,7 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Update course usecase error:', error);
       toast.error(error.message || 'Failed to update course');
-      
+
       return {
         success: false,
         error: error.message || 'Failed to update course'
@@ -562,7 +600,7 @@ export class AdminUsecase {
     const sessionToken = localStorage.getItem('adminSessionToken');
     const adminUser = localStorage.getItem('adminUser');
     const sessionExpiry = localStorage.getItem('adminSessionExpiry');
-    
+
     if (!sessionToken || !adminUser || !sessionExpiry) {
       return false;
     }
@@ -570,12 +608,12 @@ export class AdminUsecase {
     // Check if session has expired
     const expiryDate = new Date(sessionExpiry);
     const now = new Date();
-    
+
     if (now >= expiryDate) {
       this.clearAdminSession();
       return false;
     }
-    
+
     return true;
   }
 
@@ -614,7 +652,7 @@ export class AdminUsecase {
       // Verify session with server
       const sessionToken = localStorage.getItem('adminSessionToken');
       const sessionResult = await AdminDatasource.validateSession(sessionToken);
-      
+
       if (!sessionResult.valid) {
         this.clearAdminSession();
         return { valid: false, reason: sessionResult.reason || 'Invalid server session' };
@@ -798,7 +836,7 @@ export class AdminUsecase {
       }
 
       const result = await AdminDatasource.updateStudentDetails(studentId, studentData);
-      
+
       if (result.success) {
         toast.success('Student details updated successfully!');
       }
@@ -820,7 +858,7 @@ export class AdminUsecase {
       }
 
       const result = await AdminDatasource.markFeeAsPaid(feeId);
-      
+
       if (result.success) {
         toast.success('Fee marked as paid successfully!');
       }
@@ -926,7 +964,7 @@ export class AdminUsecase {
       }
 
       const result = await AdminDatasource.updateFee(feeId, feeData);
-      
+
       if (result.success) {
         toast.success('Fee updated successfully!');
       }

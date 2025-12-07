@@ -198,6 +198,66 @@ export class AdminDatasource {
     }
   }
 
+  // ==================== ATTENDANCE ====================
+  /**
+   * Fetch attendance records for a specific date
+   * @param {string} date - in `YYYY-MM-DD` format
+   */
+  static async getAttendanceByDate(date) {
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('attendance_date', date)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return { attendance: data || [], error: null };
+    } catch (error) {
+      console.error('❌ AdminDatasource.getAttendanceByDate error:', error);
+      return { attendance: [], error };
+    }
+  }
+
+  /**
+   * Upsert attendance record for a user and date
+   * @param {string} userId
+   * @param {string} date - `YYYY-MM-DD`
+   * @param {{status?: string, check_in_at?: string|null, check_out_at?: string|null, remarks?: string|null}} payload
+   */
+  static async upsertAttendance(userId, date, payload) {
+    try {
+      // Sanitize status to avoid NOT NULL and invalid enum values
+      let status = payload?.status;
+      const allowed = ['present', 'absent', 'late', 'excused'];
+      if (!status || !allowed.includes(status)) {
+        status = 'absent';
+      }
+
+      const record = {
+        user_id: userId,
+        attendance_date: date,
+        status,
+        check_in_at: payload?.check_in_at ?? null,
+        check_out_at: payload?.check_out_at ?? null,
+        remarks: payload?.remarks ?? null,
+        updated_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
+        .from('attendance')
+        .upsert(record, { onConflict: 'user_id,attendance_date' })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return { attendance: data, error: null };
+    } catch (error) {
+      console.error('❌ AdminDatasource.upsertAttendance error:', error);
+      return { attendance: null, error };
+    }
+  }
+
   /**
    * Generate a secure session token (browser-compatible)
    */
@@ -1453,7 +1513,8 @@ export class AdminDatasource {
           created_at,
           user_profiles!user_id (
             full_name,
-            email
+            email,
+            phone_number
           ),
           courses!course_id (
             title,
@@ -1473,6 +1534,7 @@ export class AdminDatasource {
         user_id: fee.user_id,
         student_name: fee.user_profiles?.full_name || 'N/A',
         student_email: fee.user_profiles?.email || 'N/A',
+        phone_number: fee.user_profiles?.phone_number || null,
         course_title: fee.courses?.title || fee.course_name || 'N/A',
         installment_number: fee.installment_number || 0,
         total_installments: fee.total_installments || 0,
