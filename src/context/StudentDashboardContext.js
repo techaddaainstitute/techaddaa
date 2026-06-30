@@ -15,11 +15,15 @@ export const StudentDashboardProvider = ({ children }) => {
   const [state, setState] = useState({
     myCourses: [],
     myFees: null,
+    myCertificates: [],
+    myAttendance: [],
     profile: null,
     initStatus: Status.INIT,
     profileStatus: Status.INIT,
     enrollmentsStatus: Status.INIT,
     feesStatus: Status.INIT,
+    certificatesStatus: Status.INIT,
+    attendanceStatus: Status.INIT,
     updateProfileStatus: Status.INIT,
     markPaidStatus: Status.INIT,
   });
@@ -31,10 +35,12 @@ export const StudentDashboardProvider = ({ children }) => {
     setState((prev) => ({ ...prev, initStatus: Status.LOADING }));
 
     try {
-      const [profileResult, enrollmentsResult, feesResult] = await Promise.all([
+      const [profileResult, enrollmentsResult, feesResult, certificatesResult, attendanceResult] = await Promise.all([
         StudentDatasource.getStudentProfile(userId),
         StudentDatasource.getStudentEnrollments(userId),
-        StudentDatasource.getFeesData(userId)
+        StudentDatasource.getFeesData(userId),
+        StudentDatasource.getStudentCertificates(userId),
+        StudentDatasource.getStudentAttendance(userId)
       ]);
       if (profileResult.data == null) {
         toast.error("Profile not found Login Again");
@@ -61,11 +67,33 @@ export const StudentDashboardProvider = ({ children }) => {
         }
       };
 
+      const myCertificates = (certificatesResult.data || []).map((certificate) => ({
+        id: certificate.id,
+        certificate_number: certificate.certificate_number,
+        course_name: certificate.course_name || 'Course',
+        grade: certificate.grade || 'N/A',
+        issue_date: certificate.issue_date,
+        completion_date: certificate.completion_date,
+        certificate_url: certificate.certificate_url || '',
+        is_valid: certificate.is_valid !== false,
+      }));
+
+      const myAttendance = (attendanceResult.data || []).map((attendance) => ({
+        id: attendance.id,
+        attendance_date: attendance.attendance_date,
+        status: attendance.status || 'absent',
+        remarks: attendance.remarks || '',
+        check_in_at: attendance.check_in_at,
+        check_out_at: attendance.check_out_at,
+      }));
+
       setState((prev) => ({
         ...prev,
         profile: profile,
         myCourses,
         myFees,
+        myCertificates,
+        myAttendance,
         initStatus: Status.SUCCESS,
       }));
 

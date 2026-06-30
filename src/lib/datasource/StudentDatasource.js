@@ -354,6 +354,25 @@ export class StudentDatasource {
   }
 
   /**
+   * Get attendance records for a student
+   */
+  static async getStudentAttendance(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('user_id', userId)
+        .order('attendance_date', { ascending: false });
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error fetching student attendance:', error);
+      return { data: null, error };
+    }
+  }
+
+  /**
    * Get certificate by course
    */
   static async getCertificateByCourse(userId, courseId) {

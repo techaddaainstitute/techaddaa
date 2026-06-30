@@ -25,6 +25,8 @@ import AdminLogin from './pages/admin/Login';
 import AdminDashboardNew from './pages/admin/AdminDashboard';
 import AdminChangePassword from './pages/admin/AdminChangePassword';
 import StudentView from './pages/admin/StudentView';
+import TeacherLogin from './pages/teacher/Login';
+import TeacherDashboard from './pages/teacher/Dashboard';
 
 
 // Context
@@ -91,6 +93,8 @@ function AppContent() {
           <Route path="/admin/dashboard" element={<AdminDashboardNew />} />
           <Route path="/admin/student/:studentId" element={<StudentView />} />
           <Route path="/admin/change-password" element={<AdminChangePassword />} />
+          <Route path="/teacher/login" element={<TeacherLogin />} />
+          <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
           <Route
             path="/admin"
             element={loading ? (

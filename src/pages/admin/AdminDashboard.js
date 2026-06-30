@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, Table, Button, Badge, Nav, Tab, Modal, Form, Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import { FaSignOutAlt, FaKey, FaUser, FaRupeeSign, FaClock, FaCreditCard, FaMoneyBillWave, FaPlus, FaEdit, FaCalendarAlt, FaSearch, FaFileExport, FaPhoneAlt, FaWhatsapp } from 'react-icons/fa';
+import { FaSignOutAlt, FaKey, FaUser, FaRupeeSign, FaClock, FaCreditCard, FaMoneyBillWave, FaPlus, FaEdit, FaCalendarAlt, FaSearch, FaFileExport, FaPhoneAlt, FaWhatsapp, FaCertificate, FaEye, FaTrash, FaChalkboardTeacher } from 'react-icons/fa';
 import AdminUsecase from '../../lib/usecase/AdminUsecase';
 import StudentAttendacne from './StudentAttendacne';
+
+const CERTIFICATE_CACHE_KEY = 'adminCertificatesCache';
+const CERTIFICATE_PREVIEW_KEY = 'adminCertificatePreview';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('attendance');
@@ -21,6 +24,8 @@ const AdminDashboard = () => {
   const [financialStats, setFinancialStats] = useState({});
   const [accounts, setAccounts] = useState([]);
   const [pendingFees, setPendingFees] = useState([]);
+  const [certificates, setCertificates] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const navigate = useNavigate();
 
   // Modal states
@@ -29,6 +34,8 @@ const AdminDashboard = () => {
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [showEditCourseModal, setShowEditCourseModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [showCertificateViewModal, setShowCertificateViewModal] = useState(false);
+  const [showTeacherModal, setShowTeacherModal] = useState(false);
 
   // Form data states
   const [studentFormData, setStudentFormData] = useState({
@@ -101,6 +108,42 @@ const AdminDashboard = () => {
   const [searchCourses, setSearchCourses] = useState('');
   const [searchEnrollments, setSearchEnrollments] = useState('');
   const [searchFees, setSearchFees] = useState('');
+  const [searchCertificates, setSearchCertificates] = useState('');
+  const [certificateStudentSearch, setCertificateStudentSearch] = useState('');
+  const [certificateFormData, setCertificateFormData] = useState({
+    user_id: '',
+    enrollment_id: '',
+    course_id: '',
+    course_name: '',
+    certificate_number: '',
+    grade: '',
+    instructor_name: '',
+    course_duration: '',
+    completion_date: '',
+    issue_date: '',
+    certificate_url: '',
+    is_valid: true
+  });
+  const [certificateFormError, setCertificateFormError] = useState('');
+  const [certificateFormSuccess, setCertificateFormSuccess] = useState('');
+  const [selectedCertificate, setSelectedCertificate] = useState(null);
+  const [certificateActionLoadingId, setCertificateActionLoadingId] = useState('');
+  const [searchTeachers, setSearchTeachers] = useState('');
+  const [teacherModalMode, setTeacherModalMode] = useState('add');
+  const [selectedTeacher, setSelectedTeacher] = useState(null);
+  const [teacherFormData, setTeacherFormData] = useState({
+    full_name: '',
+    email: '',
+    phone_number: '',
+    joining_date: '',
+    salary: '',
+    password: '',
+    designation: 'teacher',
+    address: '',
+    is_active: true
+  });
+  const [teacherFormError, setTeacherFormError] = useState('');
+  const [teacherFormSuccess, setTeacherFormSuccess] = useState('');
 
   // Attendance moved to StudentAttendacne component
 
@@ -344,6 +387,174 @@ const AdminDashboard = () => {
     }
   };
 
+  const getFilteredCertificates = () => {
+    const q = (searchCertificates || '').trim().toLowerCase();
+    if (!q) return certificates;
+    return (certificates || []).filter((c) => {
+      const certNo = String(c.certificate_number || '').toLowerCase();
+      const student = String(c.student_name || '').toLowerCase();
+      const course = String(c.course_name || '').toLowerCase();
+      const grade = String(c.grade || '').toLowerCase();
+      return certNo.includes(q) || student.includes(q) || course.includes(q) || grade.includes(q);
+    });
+  };
+
+  const getFilteredTeachers = () => {
+    const q = (searchTeachers || '').trim().toLowerCase();
+    if (!q) return teachers;
+    return (teachers || []).filter((teacher) => {
+      const name = String(teacher.full_name || '').toLowerCase();
+      const email = String(teacher.email || '').toLowerCase();
+      const phone = String(teacher.phone_number || '').toLowerCase();
+      const designation = String(teacher.designation || '').toLowerCase();
+      const status = teacher.is_active ? 'active' : 'inactive';
+      return (
+        name.includes(q) ||
+        email.includes(q) ||
+        phone.includes(q) ||
+        designation.includes(q) ||
+        status.includes(q)
+      );
+    });
+  };
+
+  const resetTeacherForm = () => {
+    setTeacherFormData({
+      full_name: '',
+      email: '',
+      phone_number: '',
+      joining_date: '',
+      salary: '',
+      password: '',
+      designation: 'teacher',
+      address: '',
+      is_active: true
+    });
+    setTeacherFormError('');
+    setTeacherFormSuccess('');
+    setSelectedTeacher(null);
+    setTeacherModalMode('add');
+  };
+
+  const openTeacherModal = (mode, teacher = null) => {
+    setTeacherModalMode(mode);
+    setSelectedTeacher(teacher);
+    setTeacherFormError('');
+    setTeacherFormSuccess('');
+
+    if (teacher) {
+      setTeacherFormData({
+        full_name: teacher.full_name || '',
+        email: teacher.email || '',
+        phone_number: teacher.phone_number || '',
+        joining_date: teacher.joining_date || '',
+        salary: teacher.salary ?? '',
+        password: '',
+        designation: teacher.designation || 'teacher',
+        address: teacher.address || '',
+        is_active: teacher.is_active !== false
+      });
+    } else {
+      resetTeacherForm();
+      setTeacherModalMode(mode);
+    }
+
+    setShowTeacherModal(true);
+  };
+
+  const selectedEnrollmentsForCertificate = (enrollments || []).filter(
+    (e) => String(e.student_id) === String(certificateFormData.user_id)
+  );
+
+  const filteredStudentsForCertificate = (students || []).filter((student) => {
+    const query = (certificateStudentSearch || '').trim().toLowerCase();
+    if (!query) return true;
+
+    const name = String(student.full_name || student.name || '').toLowerCase();
+    const email = String(student.email || '').toLowerCase();
+    const phone = String(student.phone_number || '').toLowerCase();
+    return name.includes(query) || email.includes(query) || phone.includes(query);
+  });
+
+  const handleCertificateStudentChange = (studentId) => {
+    setCertificateFormData((prev) => ({
+      ...prev,
+      user_id: studentId,
+      enrollment_id: '',
+      course_id: '',
+      course_name: '',
+      course_duration: ''
+    }));
+    setCertificateFormError('');
+    setCertificateFormSuccess('');
+    setCertificateStudentSearch('');
+  };
+
+  const handleCertificateEnrollmentChange = (enrollmentId) => {
+    const enrollment = selectedEnrollmentsForCertificate.find((e) => String(e.id) === String(enrollmentId));
+    setCertificateFormData((prev) => ({
+      ...prev,
+      enrollment_id: enrollmentId,
+      course_id: enrollment?.course_id || '',
+      course_name: enrollment?.course_title || '',
+      course_duration: enrollment?.course_duration || ''
+    }));
+  };
+
+  const handleViewCertificate = (certificate) => {
+    setSelectedCertificate(certificate);
+    setShowCertificateViewModal(true);
+    setCertificateFormError('');
+  };
+
+  const handleOpenCertificatePage = (certificate) => {
+    if (!certificate) return;
+
+    localStorage.setItem(CERTIFICATE_PREVIEW_KEY, JSON.stringify(certificate));
+    window.open('/certificate?preview=admin', '_blank', 'noopener,noreferrer');
+  };
+
+  const handleToggleCertificateStatus = async (certificate) => {
+    if (!certificate?.id) return;
+
+    const nextStatus = !certificate.is_valid;
+    setCertificateActionLoadingId(certificate.id);
+    setCertificateFormError('');
+    setCertificateFormSuccess('');
+
+    const previousCertificates = certificates;
+    const updateCertificates = (list) => list.map((item) => (
+      item.id === certificate.id ? { ...item, is_valid: nextStatus } : item
+    ));
+
+    setCertificates((prev) => {
+      const nextCertificates = updateCertificates(prev);
+      localStorage.setItem(CERTIFICATE_CACHE_KEY, JSON.stringify(nextCertificates));
+      return nextCertificates;
+    });
+    if (selectedCertificate?.id === certificate.id) {
+      setSelectedCertificate((prev) => (prev ? { ...prev, is_valid: nextStatus } : prev));
+    }
+
+    try {
+      const result = await AdminUsecase.updateCertificateStatusUsecase(certificate.id, nextStatus);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update certificate status');
+      }
+
+      setCertificateFormSuccess(`Certificate ${nextStatus ? 'enabled' : 'disabled'} successfully.`);
+    } catch (error) {
+      setCertificates(previousCertificates);
+      localStorage.setItem(CERTIFICATE_CACHE_KEY, JSON.stringify(previousCertificates));
+      if (selectedCertificate?.id === certificate.id) {
+        setSelectedCertificate(certificate);
+      }
+      setCertificateFormError(error.message || 'Failed to update certificate status');
+    } finally {
+      setCertificateActionLoadingId('');
+    }
+  };
+
   useEffect(() => {
     const initializeAdmin = async () => {
       try {
@@ -380,6 +591,8 @@ const AdminDashboard = () => {
       const financialResult = await AdminUsecase.getFinancialStatsUsecase();
       const accountsResult = await AdminUsecase.getAccountsUsecase(100, 0);
       const pendingFeesResult = await AdminUsecase.getPendingFeesUsecase(200, 0);
+      const certificatesResult = await AdminUsecase.getAllCertificatesUsecase();
+      const teachersResult = await AdminUsecase.getAllTeachersUsecase();
 
       console.log('Courses result:', coursesResult);
       console.log('Courses data:', coursesResult.courses);
@@ -391,6 +604,13 @@ const AdminDashboard = () => {
       setFinancialStats(financialResult || {});
       setAccounts(accountsResult.accounts || []);
       setPendingFees(pendingFeesResult.fees || []);
+      setTeachers(teachersResult.teachers || []);
+      const cachedCertificates = JSON.parse(localStorage.getItem(CERTIFICATE_CACHE_KEY) || '[]');
+      const mergedCertificates = [...(certificatesResult.certificates || []), ...cachedCertificates].filter(
+        (certificate, index, list) => index === list.findIndex((item) => item.id === certificate.id)
+      );
+
+      setCertificates(mergedCertificates);
 
       setStats({
         totalStudents: studentsResult.count || 0,
@@ -483,6 +703,22 @@ const AdminDashboard = () => {
     setSelectedStudentForEnroll(null);
     setEnrollFormError('');
     setEnrollFormSuccess('');
+    setCertificateFormData({
+      user_id: '',
+      enrollment_id: '',
+      course_id: '',
+      course_name: '',
+      certificate_number: '',
+      grade: '',
+      instructor_name: '',
+      course_duration: '',
+      completion_date: '',
+      issue_date: '',
+      certificate_url: '',
+      is_valid: true
+    });
+    setCertificateFormError('');
+    setCertificateFormSuccess('');
   };
 
   const handleOpenEnrollModal = (student) => {
@@ -701,6 +937,77 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleCreateCertificate = async (e) => {
+    e.preventDefault();
+    setCertificateFormError('');
+    setCertificateFormSuccess('');
+
+    try {
+      if (!certificateFormData.user_id) {
+        setCertificateFormError('Please select a student');
+        return;
+      }
+      if (!certificateFormData.enrollment_id) {
+        setCertificateFormError('Please select an enrollment');
+        return;
+      }
+      if (!certificateFormData.course_id || !certificateFormData.course_name) {
+        setCertificateFormError('Course details are missing from enrollment');
+        return;
+      }
+
+      const payload = {
+        ...certificateFormData,
+        issue_date: certificateFormData.issue_date || null,
+        completion_date: certificateFormData.completion_date || null
+      };
+
+      const result = await AdminUsecase.createCertificateUsecase(payload);
+      if (result.success) {
+        const selectedStudent = (students || []).find((student) => String(student.id) === String(certificateFormData.user_id));
+        const selectedEnrollment = (enrollments || []).find((enrollment) => String(enrollment.id) === String(certificateFormData.enrollment_id));
+        const optimisticCertificate = {
+          id: result.certificate?.id || `local-${Date.now()}`,
+          certificate_number: result.certificate?.certificate_number || certificateFormData.certificate_number || 'Generated',
+          student_name: selectedStudent?.full_name || selectedStudent?.name || selectedStudent?.email || 'N/A',
+          student_email: selectedStudent?.email || 'N/A',
+          student_phone: selectedStudent?.phone_number || 'N/A',
+          course_name: certificateFormData.course_name || selectedEnrollment?.course_title || 'N/A',
+          grade: certificateFormData.grade || 'A',
+          issue_date: certificateFormData.issue_date || new Date().toISOString(),
+          is_valid: typeof certificateFormData.is_valid === 'boolean' ? certificateFormData.is_valid : true
+        };
+
+        setCertificates((prev) => {
+          const nextCertificates = [optimisticCertificate, ...prev.filter((item) => item.id !== optimisticCertificate.id)];
+          localStorage.setItem(CERTIFICATE_CACHE_KEY, JSON.stringify(nextCertificates));
+          return nextCertificates;
+        });
+        setCertificateFormSuccess('Certificate created successfully!');
+        setCertificateFormData({
+          user_id: '',
+          enrollment_id: '',
+          course_id: '',
+          course_name: '',
+          certificate_number: '',
+          grade: '',
+          instructor_name: '',
+          course_duration: '',
+          completion_date: '',
+          issue_date: '',
+          certificate_url: '',
+          is_valid: true
+        });
+        setCertificateStudentSearch('');
+      } else {
+        setCertificateFormError(result.error || 'Failed to create certificate');
+      }
+    } catch (error) {
+      console.error('Error creating certificate:', error);
+      setCertificateFormError('An error occurred while creating certificate');
+    }
+  };
+
 
 
   const handleEditCourse = async (course) => {
@@ -777,6 +1084,62 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error updating course:', error);
       setFormError('An error occurred while updating the course');
+    }
+  };
+
+  const handleTeacherSubmit = async (e) => {
+    e.preventDefault();
+    setTeacherFormError('');
+    setTeacherFormSuccess('');
+
+    try {
+      if (!teacherFormData.full_name || !teacherFormData.email) {
+        setTeacherFormError('Please fill in name and email');
+        return;
+      }
+
+      if (teacherModalMode === 'add' && !teacherFormData.password) {
+        setTeacherFormError('Password is required for new teacher');
+        return;
+      }
+
+      const result = teacherModalMode === 'edit'
+        ? await AdminUsecase.updateTeacherUsecase(selectedTeacher?.id, teacherFormData)
+        : await AdminUsecase.createTeacherUsecase(teacherFormData);
+
+      if (!result.success) {
+        setTeacherFormError(result.error || 'Failed to save teacher');
+        return;
+      }
+
+      setTeacherFormSuccess(
+        teacherModalMode === 'edit' ? 'Teacher updated successfully!' : 'Teacher added successfully!'
+      );
+      await fetchDashboardData();
+
+      setTimeout(() => {
+        setShowTeacherModal(false);
+        resetTeacherForm();
+      }, 1200);
+    } catch (error) {
+      console.error('Error saving teacher:', error);
+      setTeacherFormError('An error occurred while saving teacher');
+    }
+  };
+
+  const handleDeleteTeacher = async (teacher) => {
+    if (!teacher?.id) return;
+
+    const confirmed = window.confirm(`Delete teacher "${teacher.full_name}"?`);
+    if (!confirmed) return;
+
+    const result = await AdminUsecase.deleteTeacherUsecase(teacher.id);
+    if (result.success) {
+      await fetchDashboardData();
+      if (selectedTeacher?.id === teacher.id) {
+        setShowTeacherModal(false);
+        resetTeacherForm();
+      }
     }
   };
 
@@ -867,6 +1230,9 @@ const AdminDashboard = () => {
             <Nav.Link eventKey="students">Students</Nav.Link>
           </Nav.Item>
           <Nav.Item>
+            <Nav.Link eventKey="teachers">Teachers</Nav.Link>
+          </Nav.Item>
+          <Nav.Item>
             <Nav.Link eventKey="courses">Courses</Nav.Link>
           </Nav.Item>
           <Nav.Item>
@@ -874,6 +1240,9 @@ const AdminDashboard = () => {
           </Nav.Item>
           <Nav.Item>
             <Nav.Link eventKey="financial">Financial</Nav.Link>
+          </Nav.Item>
+          <Nav.Item>
+            <Nav.Link eventKey="certificates">Certificates</Nav.Link>
           </Nav.Item>
           <Nav.Item>
             <Nav.Link eventKey="accounts">Accounts</Nav.Link>
@@ -1001,6 +1370,93 @@ const AdminDashboard = () => {
                       <tr>
                         <td colSpan="7" className="text-center text-muted">
                           {loading ? 'Loading students...' : 'No students found'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
+              </Card.Body>
+            </Card>
+          </Tab.Pane>
+
+          {/* Teachers Tab */}
+          <Tab.Pane eventKey="teachers">
+            <Card>
+              <Card.Header className="d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">
+                  <FaChalkboardTeacher className="me-2" />
+                  Teacher Management
+                </h5>
+                <div className="d-flex align-items-center gap-2">
+                  <Form.Control
+                    type="text"
+                    placeholder="Search teacher..."
+                    size="sm"
+                    value={searchTeachers}
+                    onChange={(e) => setSearchTeachers(e.target.value)}
+                    style={{ width: '220px' }}
+                  />
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => openTeacherModal('add')}
+                  >
+                    <FaPlus className="me-1" />
+                    Add Teacher
+                  </Button>
+                </div>
+              </Card.Header>
+              <Card.Body>
+                <Table responsive hover>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Designation</th>
+                      <th>Joining Date</th>
+                      <th>Salary</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getFilteredTeachers().length > 0 ? (
+                      getFilteredTeachers().map((teacher) => (
+                        <tr key={teacher.id}>
+                          <td>{teacher.full_name}</td>
+                          <td>{teacher.email}</td>
+                          <td>{teacher.phone_number || 'N/A'}</td>
+                          <td>{teacher.designation || 'teacher'}</td>
+                          <td>{teacher.joining_date ? new Date(teacher.joining_date).toLocaleDateString() : 'N/A'}</td>
+                          <td>₹{Number(teacher.salary || 0).toLocaleString()}</td>
+                          <td>
+                            <Badge bg={teacher.is_active ? 'success' : 'secondary'}>
+                              {teacher.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </td>
+                          <td>
+                            <div className="d-flex gap-2">
+                              <Button variant="outline-primary" size="sm" onClick={() => openTeacherModal('view', teacher)}>
+                                <FaEye className="me-1" />
+                                View
+                              </Button>
+                              <Button variant="outline-secondary" size="sm" onClick={() => openTeacherModal('edit', teacher)}>
+                                <FaEdit className="me-1" />
+                                Edit
+                              </Button>
+                              <Button variant="outline-danger" size="sm" onClick={() => handleDeleteTeacher(teacher)}>
+                                <FaTrash className="me-1" />
+                                Delete
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="8" className="text-center text-muted">
+                          No teachers found
                         </td>
                       </tr>
                     )}
@@ -1159,6 +1615,214 @@ const AdminDashboard = () => {
                       <tr>
                         <td colSpan="7" className="text-center text-muted">
                           {loading ? 'Loading enrollments...' : 'No enrollments found'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </Table>
+              </Card.Body>
+            </Card>
+          </Tab.Pane>
+
+          {/* Certificates Tab */}
+          <Tab.Pane eventKey="certificates">
+            <Card>
+              <Card.Header className="d-flex justify-content-between align-items-center">
+                <h5 className="mb-0">
+                  <FaCertificate className="me-2" />
+                  Certificates Management
+                </h5>
+                <Form.Control
+                  type="text"
+                  placeholder="Search certificate/student/course..."
+                  size="sm"
+                  value={searchCertificates}
+                  onChange={(e) => setSearchCertificates(e.target.value)}
+                  style={{ width: '280px' }}
+                />
+              </Card.Header>
+              <Card.Body>
+                {certificateFormError && <Alert variant="danger">{certificateFormError}</Alert>}
+                {certificateFormSuccess && <Alert variant="success">{certificateFormSuccess}</Alert>}
+
+                <Form onSubmit={handleCreateCertificate}>
+                  <Row>
+                    <Col md={4}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Search Student</Form.Label>
+                        <Form.Control
+                          type="text"
+                          placeholder="Search by name, email or phone"
+                          value={certificateStudentSearch}
+                          onChange={(e) => setCertificateStudentSearch(e.target.value)}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+
+                  <Row>
+                    <Col md={4}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Student *</Form.Label>
+                        <Form.Select
+                          value={certificateFormData.user_id}
+                          onChange={(e) => handleCertificateStudentChange(e.target.value)}
+                          required
+                        >
+                          <option value="">Select student</option>
+                          {filteredStudentsForCertificate.map((student) => (
+                            <option key={student.id} value={student.id}>
+                              {(student.full_name || student.name || student.email)} {student.phone_number ? `- ${student.phone_number}` : ''}
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                    <Col md={4}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Enrollment *</Form.Label>
+                        <Form.Select
+                          value={certificateFormData.enrollment_id}
+                          onChange={(e) => handleCertificateEnrollmentChange(e.target.value)}
+                          required
+                          disabled={!certificateFormData.user_id}
+                        >
+                          <option value="">Select enrollment</option>
+                          {selectedEnrollmentsForCertificate.map((enrollment) => (
+                            <option key={enrollment.id} value={enrollment.id}>
+                              {enrollment.course_title} ({enrollment.status})
+                            </option>
+                          ))}
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                    <Col md={4}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Certificate Number</Form.Label>
+                        <Form.Control
+                          type="text"
+                          placeholder="Auto-generated if empty"
+                          value={certificateFormData.certificate_number}
+                          onChange={(e) => setCertificateFormData({ ...certificateFormData, certificate_number: e.target.value })}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+
+                  <Row>
+                    <Col md={4}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Grade</Form.Label>
+                        <Form.Control
+                          type="text"
+                          value={certificateFormData.grade}
+                          onChange={(e) => setCertificateFormData({ ...certificateFormData, grade: e.target.value })}
+                          placeholder="A+, A, B..."
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={4}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Completion Date</Form.Label>
+                        <Form.Control
+                          type="date"
+                          value={certificateFormData.completion_date}
+                          onChange={(e) => setCertificateFormData({ ...certificateFormData, completion_date: e.target.value })}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={4}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Issue Date</Form.Label>
+                        <Form.Control
+                          type="date"
+                          value={certificateFormData.issue_date}
+                          onChange={(e) => setCertificateFormData({ ...certificateFormData, issue_date: e.target.value })}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+
+                  <Row className="align-items-center">
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>Course Name</Form.Label>
+                        <Form.Control type="text" value={certificateFormData.course_name} readOnly />
+                      </Form.Group>
+                    </Col>
+                    <Col md={3}>
+                      <Form.Group className="mb-3">
+                        <Form.Check
+                          type="switch"
+                          label="Certificate Valid"
+                          checked={!!certificateFormData.is_valid}
+                          onChange={(e) => setCertificateFormData({ ...certificateFormData, is_valid: e.target.checked })}
+                        />
+                      </Form.Group>
+                    </Col>
+                    <Col md={3} className="text-end">
+                      <Button type="submit" variant="primary" className="mt-2">
+                        <FaPlus className="me-1" />
+                        Create Certificate
+                      </Button>
+                    </Col>
+                  </Row>
+                </Form>
+
+                <hr />
+
+                <Table responsive hover>
+                  <thead>
+                    <tr>
+                      <th>Certificate No</th>
+                      <th>Student</th>
+                      <th>Course</th>
+                      <th>Grade</th>
+                      <th>Issue Date</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getFilteredCertificates().length > 0 ? (
+                      getFilteredCertificates().map((cert) => (
+                        <tr key={cert.id}>
+                          <td>{cert.certificate_number}</td>
+                          <td>{cert.student_name}</td>
+                          <td>{cert.course_name}</td>
+                          <td>{cert.grade || 'N/A'}</td>
+                          <td>{cert.issue_date ? new Date(cert.issue_date).toLocaleDateString() : 'N/A'}</td>
+                          <td>
+                            <Badge bg={cert.is_valid ? 'success' : 'secondary'}>
+                              {cert.is_valid ? 'Valid' : 'Invalid'}
+                            </Badge>
+                          </td>
+                          <td>
+                            <div className="d-flex gap-2">
+                              <Button
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => handleViewCertificate(cert)}
+                              >
+                                <FaEye className="me-1" />
+                                View
+                              </Button>
+                              <Button
+                                variant={cert.is_valid ? 'outline-danger' : 'outline-success'}
+                                size="sm"
+                                disabled={certificateActionLoadingId === cert.id}
+                                onClick={() => handleToggleCertificateStatus(cert)}
+                              >
+                                {certificateActionLoadingId === cert.id ? 'Saving...' : (cert.is_valid ? 'Off' : 'On')}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="7" className="text-center text-muted">
+                          No certificates found
                         </td>
                       </tr>
                     )}
@@ -2155,6 +2819,196 @@ const AdminDashboard = () => {
           </Button>
           <Button variant="primary" onClick={handleAddAccount}>
             Add Statement
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={showTeacherModal}
+        onHide={() => {
+          setShowTeacherModal(false);
+          resetTeacherForm();
+        }}
+        size="lg"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {teacherModalMode === 'add' && 'Add Teacher'}
+            {teacherModalMode === 'edit' && 'Edit Teacher'}
+            {teacherModalMode === 'view' && 'View Teacher'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {teacherFormError && <Alert variant="danger">{teacherFormError}</Alert>}
+          {teacherFormSuccess && <Alert variant="success">{teacherFormSuccess}</Alert>}
+
+          <Form onSubmit={handleTeacherSubmit}>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Full Name *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={teacherFormData.full_name}
+                    onChange={(e) => setTeacherFormData({ ...teacherFormData, full_name: e.target.value })}
+                    disabled={teacherModalMode === 'view'}
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Email *</Form.Label>
+                  <Form.Control
+                    type="email"
+                    value={teacherFormData.email}
+                    onChange={(e) => setTeacherFormData({ ...teacherFormData, email: e.target.value })}
+                    disabled={teacherModalMode === 'view'}
+                    required
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Phone Number</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={teacherFormData.phone_number}
+                    onChange={(e) => setTeacherFormData({ ...teacherFormData, phone_number: e.target.value })}
+                    disabled={teacherModalMode === 'view'}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Joining Date</Form.Label>
+                  <Form.Control
+                    type="date"
+                    value={teacherFormData.joining_date}
+                    onChange={(e) => setTeacherFormData({ ...teacherFormData, joining_date: e.target.value })}
+                    disabled={teacherModalMode === 'view'}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Salary</Form.Label>
+                  <Form.Control
+                    type="number"
+                    min="0"
+                    value={teacherFormData.salary}
+                    onChange={(e) => setTeacherFormData({ ...teacherFormData, salary: e.target.value })}
+                    disabled={teacherModalMode === 'view'}
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={6}>
+                <Form.Group className="mb-3">
+                  <Form.Label>Designation</Form.Label>
+                  <Form.Control
+                    type="text"
+                    value={teacherFormData.designation}
+                    onChange={(e) => setTeacherFormData({ ...teacherFormData, designation: e.target.value })}
+                    disabled={teacherModalMode === 'view'}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3">
+              <Form.Label>
+                {teacherModalMode === 'edit' ? 'New Password' : 'Password'}
+                {teacherModalMode === 'edit' ? ' (optional)' : ' *'}
+              </Form.Label>
+              <Form.Control
+                type="password"
+                value={teacherFormData.password}
+                onChange={(e) => setTeacherFormData({ ...teacherFormData, password: e.target.value })}
+                disabled={teacherModalMode === 'view'}
+                placeholder={teacherModalMode === 'edit' ? 'Leave blank to keep current password' : 'Enter password'}
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Address</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={teacherFormData.address}
+                onChange={(e) => setTeacherFormData({ ...teacherFormData, address: e.target.value })}
+                disabled={teacherModalMode === 'view'}
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-0">
+              <Form.Check
+                type="switch"
+                label="Teacher Active"
+                checked={!!teacherFormData.is_active}
+                onChange={(e) => setTeacherFormData({ ...teacherFormData, is_active: e.target.checked })}
+                disabled={teacherModalMode === 'view'}
+              />
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setShowTeacherModal(false);
+              resetTeacherForm();
+            }}
+          >
+            Close
+          </Button>
+          {teacherModalMode !== 'view' && (
+            <Button variant="primary" onClick={handleTeacherSubmit}>
+              {teacherModalMode === 'edit' ? 'Update Teacher' : 'Add Teacher'}
+            </Button>
+          )}
+        </Modal.Footer>
+      </Modal>
+
+      <Modal show={showCertificateViewModal} onHide={() => setShowCertificateViewModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Certificate Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedCertificate ? (
+            <div className="d-grid gap-2">
+              <div><strong>Certificate No:</strong> {selectedCertificate.certificate_number || 'N/A'}</div>
+              <div><strong>Student:</strong> {selectedCertificate.student_name || 'N/A'}</div>
+              <div><strong>Course:</strong> {selectedCertificate.course_name || 'N/A'}</div>
+              <div><strong>Grade:</strong> {selectedCertificate.grade || 'N/A'}</div>
+              <div><strong>Issue Date:</strong> {selectedCertificate.issue_date ? new Date(selectedCertificate.issue_date).toLocaleString() : 'N/A'}</div>
+              <div><strong>Completion Date:</strong> {selectedCertificate.completion_date ? new Date(selectedCertificate.completion_date).toLocaleDateString() : 'N/A'}</div>
+              <div>
+                <strong>Status:</strong>{' '}
+                <Badge bg={selectedCertificate.is_valid ? 'success' : 'secondary'}>
+                  {selectedCertificate.is_valid ? 'Valid' : 'Invalid'}
+                </Badge>
+              </div>
+            </div>
+          ) : (
+            <div className="text-muted">No certificate selected</div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowCertificateViewModal(false)}>
+            Close
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => handleOpenCertificatePage(selectedCertificate)}
+            disabled={!selectedCertificate}
+          >
+            Show Certificate
           </Button>
         </Modal.Footer>
       </Modal>

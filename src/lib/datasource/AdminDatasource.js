@@ -812,32 +812,35 @@ export class AdminDatasource {
    */
   static async getAccountStatement(limit = 50, offset = 0) {
     try {
-      // Get all paid fees with related enrollment and course information
+      // Load all paid fee rows. Some historical rows are marked paid but may not
+      // have paid_date populated, so do not exclude them from the accounts view.
       const { data: feesData, error: feesError } = await supabase
         .from('fees')
         .select(`
           id,
+          user_id,
+          course_id,
+          course_name,
           installment_amount,
           status,
           due_date,
           paid_date,
+          created_at,
+          updated_at,
           course_mode,
           payment_type,
           transaction_id,
-          course_enrollments!fees_enrollment_id_fkey (
-            user_profiles!course_enrollments_user_id_fkey (
-              full_name,
-              email
-            ),
-            courses (
-              title,
-              category
-            )
+          user_profiles!user_id (
+            full_name,
+            email
+          ),
+          courses!course_id (
+            title,
+            category
           )
         `)
-        .not('paid_date', 'is', null) // Only get records where paid_date is not null
         .eq('status', 'paid')
-        .order('paid_date', { ascending: false }) // Order by paid_date descending
+        .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (feesError) {
@@ -849,20 +852,24 @@ export class AdminDatasource {
         };
       }
 
-      const fees = feesData || [];
+      const fees = (feesData || []).sort((a, b) => {
+        const aTime = new Date(a.paid_date || a.updated_at || a.created_at || a.due_date || 0).getTime();
+        const bTime = new Date(b.paid_date || b.updated_at || b.created_at || b.due_date || 0).getTime();
+        return bTime - aTime;
+      });
 
       // Format the transactions for account statement
       const transactions = fees.map(fee => ({
         id: fee.id,
         transaction_id: fee.transaction_id || `TXN${fee.id.slice(-8)}`,
-        student_name: fee.course_enrollments?.user_profiles?.full_name || 'N/A',
-        student_email: fee.course_enrollments?.user_profiles?.email || 'N/A',
-        course_title: fee.course_enrollments?.courses?.title || 'N/A',
-        course_category: fee.course_enrollments?.courses?.category || 'N/A',
+        student_name: fee.user_profiles?.full_name || 'N/A',
+        student_email: fee.user_profiles?.email || 'N/A',
+        course_title: fee.courses?.title || fee.course_name || 'N/A',
+        course_category: fee.courses?.category || 'N/A',
         amount: fee.installment_amount || 0,
         payment_mode: fee.payment_type || fee.course_mode || 'online',
         course_mode: fee.course_mode || 'online',
-        payment_date: fee.paid_date,
+        payment_date: fee.paid_date || fee.updated_at || fee.created_at || fee.due_date,
         due_date: fee.due_date,
         status: fee.status
       }));
@@ -1672,6 +1679,270 @@ export class AdminDatasource {
     } catch (error) {
       console.error('❌ AdminDatasource delete fee error:', error);
       return { success: false, error: 'Failed to delete fee' };
+    }
+  }
+
+  /**
+   * Get all teachers for admin management
+   */
+  static async getAllTeachers() {
+    try {
+      const { data, error } = await supabase.rpc('get_all_teachers');
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return {
+        success: true,
+        teachers: (data || []).map((teacher) => ({
+          ...teacher,
+          salary: Number(teacher.salary || 0)
+        }))
+      };
+    } catch (error) {
+      console.error('❌ AdminDatasource getAllTeachers error:', error);
+      return { success: false, error: error.message, teachers: [] };
+    }
+  }
+
+  /**
+   * Create a teacher via RPC
+   */
+  static async createTeacher(teacherData) {
+    try {
+      const { data, error } = await supabase.rpc('create_teacher', {
+        p_email: teacherData.email,
+        p_password: teacherData.password,
+        p_full_name: teacherData.full_name,
+        p_phone_number: teacherData.phone_number || null,
+        p_joining_date: teacherData.joining_date || null,
+        p_salary: Number(teacherData.salary || 0),
+        p_designation: teacherData.designation || 'teacher',
+        p_address: teacherData.address || null,
+        p_created_by: teacherData.created_by || null
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true, teacherId: data };
+    } catch (error) {
+      console.error('❌ AdminDatasource createTeacher error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update teacher via RPC
+   */
+  static async updateTeacher(teacherId, teacherData) {
+    try {
+      const { data, error } = await supabase.rpc('update_teacher_profile', {
+        p_teacher_id: teacherId,
+        p_email: teacherData.email,
+        p_full_name: teacherData.full_name,
+        p_phone_number: teacherData.phone_number || null,
+        p_joining_date: teacherData.joining_date || null,
+        p_salary: Number(teacherData.salary || 0),
+        p_designation: teacherData.designation || 'teacher',
+        p_address: teacherData.address || null,
+        p_is_active: teacherData.is_active !== false,
+        p_password: teacherData.password || null
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true, teacherId: data || teacherId };
+    } catch (error) {
+      console.error('❌ AdminDatasource updateTeacher error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Delete teacher via RPC
+   */
+  static async deleteTeacher(teacherId) {
+    try {
+      const { error } = await supabase.rpc('delete_teacher_record', {
+        p_teacher_id: teacherId
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('❌ AdminDatasource deleteTeacher error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get all certificates for admin management
+   */
+  static async getAllCertificates() {
+    try {
+      const { data, error } = await supabase
+        .from('certificates')
+        .select(`
+          id,
+          user_id,
+          course_id,
+          enrollment_id,
+          certificate_number,
+          issue_date,
+          grade,
+          instructor_name,
+          course_name,
+          course_duration,
+          completion_date,
+          certificate_url,
+          is_valid,
+          user_profiles!certificates_user_id_fkey (
+            full_name,
+            email,
+            phone_number
+          )
+        `)
+        .order('issue_date', { ascending: false });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const certificates = (data || []).map((item) => ({
+        id: item.id,
+        user_id: item.user_id,
+        course_id: item.course_id,
+        enrollment_id: item.enrollment_id,
+        certificate_number: item.certificate_number,
+        issue_date: item.issue_date,
+        grade: item.grade,
+        instructor_name: item.instructor_name,
+        course_name: item.course_name,
+        course_duration: item.course_duration,
+        completion_date: item.completion_date,
+        certificate_url: item.certificate_url,
+        is_valid: item.is_valid,
+        student_name: item.user_profiles?.full_name || 'N/A',
+        student_email: item.user_profiles?.email || 'N/A',
+        student_phone: item.user_profiles?.phone_number || 'N/A'
+      }));
+
+      return { success: true, certificates };
+    } catch (error) {
+      console.error('❌ AdminDatasource getAllCertificates error:', error);
+      return { success: false, error: error.message, certificates: [] };
+    }
+  }
+
+  static generateCertificateNumber() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const random = Math.floor(1000 + Math.random() * 9000);
+    return `TECH-${y}${m}${d}-${random}`;
+  }
+
+  /**
+   * Create certificate for a student's enrollment
+   */
+  static async createCertificate(payload) {
+    try {
+      if (!payload?.user_id || !payload?.course_id || !payload?.enrollment_id) {
+        return { success: false, error: 'user_id, course_id and enrollment_id are required' };
+      }
+
+      // Use SECURITY DEFINER function to bypass strict RLS on certificates table.
+      const { data: certificateId, error: rpcError } = await supabase.rpc('create_certificate', {
+        p_user_id: payload.user_id,
+        p_course_id: payload.course_id,
+        p_enrollment_id: payload.enrollment_id,
+        p_grade: payload.grade || 'A'
+      });
+
+      if (!rpcError && certificateId) {
+        const { data: certRow, error: certFetchError } = await supabase
+          .from('certificates')
+          .select('*')
+          .eq('id', certificateId)
+          .maybeSingle();
+
+        if (!certFetchError && certRow) {
+          return { success: true, certificate: certRow };
+        }
+
+        // If row fetch is blocked by RLS, still return success with created id.
+        return { success: true, certificate: { id: certificateId } };
+      }
+
+      // Fallback for environments without the RPC function
+      const certificateNumber = payload.certificate_number || this.generateCertificateNumber();
+      const issueDate = payload.issue_date || new Date().toISOString();
+
+      const insertData = {
+        user_id: payload.user_id,
+        course_id: payload.course_id,
+        enrollment_id: payload.enrollment_id,
+        certificate_number: certificateNumber,
+        issue_date: issueDate,
+        grade: payload.grade || null,
+        instructor_name: payload.instructor_name || null,
+        course_name: payload.course_name || 'Course',
+        course_duration: payload.course_duration || null,
+        completion_date: payload.completion_date || null,
+        certificate_url: payload.certificate_url || null,
+        is_valid: typeof payload.is_valid === 'boolean' ? payload.is_valid : true
+      };
+
+      const { data, error } = await supabase
+        .from('certificates')
+        .insert(insertData)
+        .select('*')
+        .single();
+
+      if (error) {
+        throw new Error(rpcError?.message || error.message);
+      }
+
+      return { success: true, certificate: data };
+    } catch (error) {
+      console.error('❌ AdminDatasource createCertificate error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Toggle certificate validity
+   */
+  static async updateCertificateStatus(certificateId, isValid) {
+    try {
+      if (!certificateId) {
+        return { success: false, error: 'Certificate id is required' };
+      }
+
+      const { data, error } = await supabase
+        .from('certificates')
+        .update({ is_valid: !!isValid })
+        .eq('id', certificateId)
+        .select('id, is_valid')
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { success: true, certificate: data };
+    } catch (error) {
+      console.error('❌ AdminDatasource updateCertificateStatus error:', error);
+      return { success: false, error: error.message || 'Failed to update certificate status' };
     }
   }
 

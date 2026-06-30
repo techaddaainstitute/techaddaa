@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, InputGroup, Nav } from 'react-bootstrap';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FaPhone, FaLock, FaEye, FaEyeSlash, FaEnvelope, FaUserPlus, FaShieldAlt, FaUser, FaCalendarAlt } from 'react-icons/fa';
+import { FaPhone, FaLock, FaEye, FaEyeSlash, FaEnvelope, FaUserPlus, FaShieldAlt, FaUser, FaCalendarAlt, FaChalkboardTeacher } from 'react-icons/fa';
 import { useStudentAuth } from '../context/StudentAuthContext';
 import { toast } from 'react-toastify';
 import { Loading } from '../widgets/Loading';
@@ -367,18 +367,30 @@ const Login = () => {
 
 
 
-                      {/* Admin Login Button */}
+                      {/* Admin And Teacher Login Buttons */}
                       <div className="text-center mt-3">
-                        <Button
-                          variant="outline-secondary"
-                          size="sm"
-                          onClick={() => navigate('/admin/login')}
-                          className="d-flex align-items-center justify-content-center mx-auto"
-                          style={{ maxWidth: '200px' }}
-                        >
-                          <FaShieldAlt className="me-2" />
-                          Admin Login
-                        </Button>
+                        <div className="d-flex justify-content-center gap-2 flex-wrap">
+                          <Button
+                            variant="outline-secondary"
+                            size="sm"
+                            onClick={() => navigate('/admin/login')}
+                            className="d-flex align-items-center justify-content-center"
+                            style={{ minWidth: '150px' }}
+                          >
+                            <FaShieldAlt className="me-2" />
+                            Admin Login
+                          </Button>
+                          <Button
+                            variant="outline-primary"
+                            size="sm"
+                            onClick={() => navigate('/teacher/login')}
+                            className="d-flex align-items-center justify-content-center"
+                            style={{ minWidth: '150px' }}
+                          >
+                            <FaChalkboardTeacher className="me-2" />
+                            Teacher Login
+                          </Button>
+                        </div>
                       </div>
 
                       <div className="text-center mt-4">

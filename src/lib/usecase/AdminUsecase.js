@@ -706,17 +706,41 @@ export class AdminUsecase {
    */
   static async getAccountsUsecase(limit = 100, offset = 0) {
     try {
-      // Fetch manual account entries
-      const accountsResult = await AdminDatasource.getAccounts(limit, offset);
-      // Fetch paid fee transactions (account statement)
-      const statementResult = await AdminDatasource.getAccountStatement(limit, offset);
+      // Fetch all pages so the accounts tab does not miss older paid fees.
+      const pageSize = Math.max(Number(limit) || 100, 1);
+
+      const fetchAllPages = async (fetcher) => {
+        let currentOffset = Number(offset) || 0;
+        const merged = [];
+
+        while (true) {
+          const result = await fetcher(pageSize, currentOffset);
+          if (!result.success) {
+            return result;
+          }
+
+          const rows = result.accounts || result.transactions || [];
+          merged.push(...rows);
+
+          if (rows.length < pageSize) {
+            return { success: true, rows: merged };
+          }
+
+          currentOffset += pageSize;
+        }
+      };
+
+      const [accountsResult, statementResult] = await Promise.all([
+        fetchAllPages((pageLimit, pageOffset) => AdminDatasource.getAccounts(pageLimit, pageOffset)),
+        fetchAllPages((pageLimit, pageOffset) => AdminDatasource.getAccountStatement(pageLimit, pageOffset))
+      ]);
 
       if (!accountsResult.success && !statementResult.success) {
         throw new Error(accountsResult.error || statementResult.error || 'Failed to fetch accounts');
       }
 
-      const manualAccounts = accountsResult.success ? (accountsResult.accounts || []) : [];
-      const paidTransactions = statementResult.success ? (statementResult.transactions || []) : [];
+      const manualAccounts = accountsResult.success ? (accountsResult.rows || []) : [];
+      const paidTransactions = statementResult.success ? (statementResult.rows || []) : [];
 
       // Map paid fees into account-like rows with required description
       const mappedPaid = paidTransactions.map((txn) => ({
@@ -973,6 +997,203 @@ export class AdminUsecase {
     } catch (error) {
       console.error('Error updating fee:', error);
       return { success: false, error: 'Failed to update fee' };
+    }
+  }
+
+  /**
+   * Get all teachers (admin)
+   */
+  static async getAllTeachersUsecase() {
+    try {
+      const result = await AdminDatasource.getAllTeachers();
+      if (result.success) {
+        return {
+          success: true,
+          teachers: result.teachers || [],
+          count: (result.teachers || []).length
+        };
+      }
+      throw new Error(result.error || 'Failed to fetch teachers');
+    } catch (error) {
+      console.error('Get teachers usecase error:', error);
+      return { success: false, teachers: [], count: 0, error: error.message || 'Failed to fetch teachers' };
+    }
+  }
+
+  /**
+   * Create teacher (admin)
+   */
+  static async createTeacherUsecase(formData) {
+    try {
+      if (!formData?.full_name || !formData?.email || !formData?.password) {
+        throw new Error('Name, email and password are required');
+      }
+
+      if (!this.isValidEmail(formData.email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      if (String(formData.password).length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
+      const adminUser = this.getStoredAdminUser();
+      const result = await AdminDatasource.createTeacher({
+        ...formData,
+        created_by: adminUser?.id || null
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create teacher');
+      }
+
+      toast.success('Teacher added successfully!');
+      return { success: true, teacherId: result.teacherId };
+    } catch (error) {
+      console.error('Create teacher usecase error:', error);
+      toast.error(error.message || 'Failed to create teacher');
+      return { success: false, error: error.message || 'Failed to create teacher' };
+    }
+  }
+
+  /**
+   * Update teacher (admin)
+   */
+  static async updateTeacherUsecase(teacherId, formData) {
+    try {
+      if (!teacherId) {
+        throw new Error('Teacher id is required');
+      }
+
+      if (!formData?.full_name || !formData?.email) {
+        throw new Error('Name and email are required');
+      }
+
+      if (!this.isValidEmail(formData.email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      if (formData.password && String(formData.password).length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
+      const result = await AdminDatasource.updateTeacher(teacherId, formData);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update teacher');
+      }
+
+      toast.success('Teacher updated successfully!');
+      return { success: true, teacherId: result.teacherId };
+    } catch (error) {
+      console.error('Update teacher usecase error:', error);
+      toast.error(error.message || 'Failed to update teacher');
+      return { success: false, error: error.message || 'Failed to update teacher' };
+    }
+  }
+
+  /**
+   * Delete teacher (admin)
+   */
+  static async deleteTeacherUsecase(teacherId) {
+    try {
+      if (!teacherId) {
+        throw new Error('Teacher id is required');
+      }
+
+      const result = await AdminDatasource.deleteTeacher(teacherId);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete teacher');
+      }
+
+      toast.success('Teacher deleted successfully!');
+      return { success: true };
+    } catch (error) {
+      console.error('Delete teacher usecase error:', error);
+      toast.error(error.message || 'Failed to delete teacher');
+      return { success: false, error: error.message || 'Failed to delete teacher' };
+    }
+  }
+
+  /**
+   * Get all certificates (admin)
+   */
+  static async getAllCertificatesUsecase() {
+    try {
+      const result = await AdminDatasource.getAllCertificates();
+      if (result.success) {
+        return {
+          success: true,
+          certificates: result.certificates || [],
+          count: (result.certificates || []).length
+        };
+      }
+      return { success: false, certificates: [], count: 0, error: result.error || 'Failed to fetch certificates' };
+    } catch (error) {
+      console.error('Get certificates usecase error:', error);
+      return { success: false, certificates: [], count: 0, error: error.message || 'Failed to fetch certificates' };
+    }
+  }
+
+  /**
+   * Create certificate for selected student + enrollment (admin)
+   */
+  static async createCertificateUsecase(formData) {
+    try {
+      if (!formData?.user_id || !formData?.enrollment_id || !formData?.course_id) {
+        throw new Error('Student and enrollment are required');
+      }
+
+      if (!formData.course_name) {
+        throw new Error('Course name is required');
+      }
+
+      const payload = {
+        user_id: formData.user_id,
+        enrollment_id: formData.enrollment_id,
+        course_id: formData.course_id,
+        certificate_number: formData.certificate_number || null,
+        issue_date: formData.issue_date || null,
+        grade: formData.grade || null,
+        instructor_name: formData.instructor_name || null,
+        course_name: formData.course_name,
+        course_duration: formData.course_duration || null,
+        completion_date: formData.completion_date || null,
+        certificate_url: formData.certificate_url || null,
+        is_valid: typeof formData.is_valid === 'boolean' ? formData.is_valid : true
+      };
+
+      const result = await AdminDatasource.createCertificate(payload);
+      if (result.success) {
+        toast.success('Certificate created successfully!');
+        return { success: true, certificate: result.certificate };
+      }
+
+      throw new Error(result.error || 'Failed to create certificate');
+    } catch (error) {
+      console.error('Create certificate usecase error:', error);
+      toast.error(error.message || 'Failed to create certificate');
+      return { success: false, error: error.message || 'Failed to create certificate' };
+    }
+  }
+
+  /**
+   * Update certificate validity (admin)
+   */
+  static async updateCertificateStatusUsecase(certificateId, isValid) {
+    try {
+      if (!certificateId) {
+        throw new Error('Certificate id is required');
+      }
+
+      const result = await AdminDatasource.updateCertificateStatus(certificateId, isValid);
+      if (result.success) {
+        return { success: true, certificate: result.certificate };
+      }
+
+      throw new Error(result.error || 'Failed to update certificate status');
+    } catch (error) {
+      console.error('Update certificate status usecase error:', error);
+      return { success: false, error: error.message || 'Failed to update certificate status' };
     }
   }
 

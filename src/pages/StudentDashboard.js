@@ -433,6 +433,137 @@ const StudentDashboard = () => {
                 </Row>
               </Tab>
 
+              {/* Certificates Tab */}
+              <Tab eventKey="certificates" title={<><FaCertificate className="me-2" />Certificates</>}>
+                <Row className="justify-content-center">
+                  <Col lg={10}>
+                    <Card className="border-0 shadow-sm">
+                      <Card.Header className="bg-white border-0">
+                        <h5 className="mb-0">
+                          <FaCertificate className="me-2 text-success" />
+                          My Certificates
+                        </h5>
+                      </Card.Header>
+                      <Card.Body>
+                        {s?.initStatus === Status.LOADING ? (
+                          <div className="text-center py-4">
+                            <div className="spinner-border text-primary" role="status">
+                              <span className="visually-hidden">Loading...</span>
+                            </div>
+                            <p className="text-muted mt-2">Loading certificates...</p>
+                          </div>
+                        ) : s?.myCertificates?.length > 0 ? (
+                          <div className="table-responsive">
+                            <table className="table table-hover align-middle">
+                              <thead>
+                                <tr>
+                                  <th>Certificate No</th>
+                                  <th>Course</th>
+                                  <th>Grade</th>
+                                  <th>Completion Date</th>
+                                  <th>Issue Date</th>
+                                  <th>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {s.myCertificates.map((certificate) => (
+                                  <tr key={certificate.id}>
+                                    <td>{certificate.certificate_number || 'N/A'}</td>
+                                    <td>{certificate.course_name || 'N/A'}</td>
+                                    <td>{certificate.grade || 'N/A'}</td>
+                                    <td>{certificate.completion_date ? new Date(certificate.completion_date).toLocaleDateString() : 'N/A'}</td>
+                                    <td>{certificate.issue_date ? new Date(certificate.issue_date).toLocaleDateString() : 'N/A'}</td>
+                                    <td>
+                                      <Badge bg={certificate.is_valid ? 'success' : 'secondary'}>
+                                        {certificate.is_valid ? 'Valid' : 'Invalid'}
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="text-center py-5">
+                            <FaCertificate size={50} className="text-muted mb-3" />
+                            <h5>No Certificates Yet</h5>
+                            <p className="text-muted mb-0">Certificates will appear here once your course is completed and approved.</p>
+                          </div>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+              </Tab>
+
+              {/* Attendance Tab */}
+              <Tab eventKey="attendance" title={<><FaCalendarAlt className="me-2" />Attendance</>}>
+                <Row className="justify-content-center">
+                  <Col lg={10}>
+                    <Card className="border-0 shadow-sm">
+                      <Card.Header className="bg-white border-0">
+                        <h5 className="mb-0">
+                          <FaCalendarAlt className="me-2 text-primary" />
+                          Attendance History
+                        </h5>
+                      </Card.Header>
+                      <Card.Body>
+                        {s?.initStatus === Status.LOADING ? (
+                          <div className="text-center py-4">
+                            <div className="spinner-border text-primary" role="status">
+                              <span className="visually-hidden">Loading...</span>
+                            </div>
+                            <p className="text-muted mt-2">Loading attendance...</p>
+                          </div>
+                        ) : s?.myAttendance?.length > 0 ? (
+                          <div className="table-responsive">
+                            <table className="table table-hover align-middle">
+                              <thead>
+                                <tr>
+                                  <th>Date</th>
+                                  <th>Status</th>
+                                  <th>Check In</th>
+                                  <th>Check Out</th>
+                                  <th>Remarks</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {s.myAttendance.map((attendance) => (
+                                  <tr key={attendance.id}>
+                                    <td>{attendance.attendance_date ? new Date(attendance.attendance_date).toLocaleDateString() : 'N/A'}</td>
+                                    <td>
+                                      <Badge
+                                        bg={
+                                          attendance.status === 'present' ? 'success'
+                                            : attendance.status === 'late' ? 'warning'
+                                              : attendance.status === 'excused' ? 'info'
+                                                : 'danger'
+                                        }
+                                      >
+                                        {attendance.status ? attendance.status.charAt(0).toUpperCase() + attendance.status.slice(1) : 'Absent'}
+                                      </Badge>
+                                    </td>
+                                    <td>{attendance.check_in_at ? new Date(attendance.check_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                                    <td>{attendance.check_out_at ? new Date(attendance.check_out_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                                    <td>{attendance.remarks || '-'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="text-center py-5">
+                            <FaCalendarAlt size={50} className="text-muted mb-3" />
+                            <h5>No Attendance Records</h5>
+                            <p className="text-muted mb-0">Attendance entries will appear here once they are marked by admin.</p>
+                          </div>
+                        )}
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+              </Tab>
+
               {/* Profile Tab */}
               <Tab eventKey="profile" title={<><FaUser className="me-2" />Profile</>}>
                 <Row className="justify-content-center">

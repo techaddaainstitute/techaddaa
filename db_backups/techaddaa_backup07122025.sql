@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict CotfyMSI1QLZ0GhwxzgBf30lPddBs0N7hph2sg0a8xIqJaHnLhuRuPOGD12hGZw
+\restrict vrGuDhFw19ycTs7xk8KtHXmnu2Ceonh8Eh4JIYrc5qWvQb1S3Blj2tIf2vUxxz2
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.1
@@ -284,6 +284,20 @@ CREATE TYPE auth.one_time_token_type AS ENUM (
 
 
 ALTER TYPE auth.one_time_token_type OWNER TO supabase_auth_admin;
+
+--
+-- Name: attendance_status; Type: TYPE; Schema: public; Owner: postgres
+--
+
+CREATE TYPE public.attendance_status AS ENUM (
+    'present',
+    'absent',
+    'late',
+    'excused'
+);
+
+
+ALTER TYPE public.attendance_status OWNER TO postgres;
 
 --
 -- Name: action; Type: TYPE; Schema: realtime; Owner: supabase_admin
@@ -3445,6 +3459,25 @@ CREATE TABLE public.admin_user (
 ALTER TABLE public.admin_user OWNER TO postgres;
 
 --
+-- Name: attendance; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.attendance (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    attendance_date date NOT NULL,
+    status public.attendance_status DEFAULT 'present'::public.attendance_status NOT NULL,
+    check_in_at timestamp with time zone,
+    check_out_at timestamp with time zone,
+    remarks text,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.attendance OWNER TO postgres;
+
+--
 -- Name: certificate_downloads; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -4280,6 +4313,7 @@ be3b229d-0f94-4e7a-ac10-4ff37313fc22	f00b3f9a-c181-4a37-bc4a-55b843a9c34c	cc752f
 5dedd239-5474-4168-a589-95d14ae9f62a	f00b3f9a-c181-4a37-bc4a-55b843a9c34c	1b2db4abdad5804f6c17039860b53deb2c2762cc063abf32e6219e2510710268	\N	\N	2025-12-02 13:44:48.319+00	2025-12-02 05:44:53.1912+00	2025-12-02 05:44:53.1912+00
 c882a1bf-5cbf-4716-a6cd-eb112cf96e0c	f00b3f9a-c181-4a37-bc4a-55b843a9c34c	d3a1bcd8d90b68e81c9fd2d20aee920501c72be3b16d4c47b553261fbf6eac96	\N	\N	2025-12-04 15:21:15.156+00	2025-12-04 07:21:18.661934+00	2025-12-04 07:21:18.661934+00
 2ac77fea-9898-44f0-9da6-b47def4931f6	f00b3f9a-c181-4a37-bc4a-55b843a9c34c	5f108b9be756a78d974bc0d2934d08da5461c718afe11be9586ac617a1383d40	\N	\N	2025-12-05 21:36:37.009+00	2025-12-05 13:36:40.608081+00	2025-12-05 13:36:40.608081+00
+d32692d4-1b14-469f-8308-5984ec7c329c	f00b3f9a-c181-4a37-bc4a-55b843a9c34c	f39db0982e8b5687494b9ce55c171c5b2f801f6a79d8b90b6b7652386ecf0743	\N	\N	2025-12-07 15:21:27.952+00	2025-12-07 07:21:32.591056+00	2025-12-07 07:21:32.591056+00
 \.
 
 
@@ -4288,7 +4322,44 @@ c882a1bf-5cbf-4716-a6cd-eb112cf96e0c	f00b3f9a-c181-4a37-bc4a-55b843a9c34c	d3a1bc
 --
 
 COPY public.admin_user (id, email, password_hash, full_name, phone_number, role, is_active, last_login, password_changed_at, failed_login_attempts, locked_until, created_by, created_at, updated_at) FROM stdin;
-f00b3f9a-c181-4a37-bc4a-55b843a9c34c	techaddaainstitute@gmail.com	078dc1ca5f4d841c92affa6bc3ee21cc	TechAddaa Institute Administrator	+91-7579944452	super_admin	t	2025-12-05 13:36:40.388543+00	2025-10-04 19:14:01.586319+00	0	\N	\N	2025-10-04 19:14:01.586319+00	2025-12-05 13:36:40.388543+00
+f00b3f9a-c181-4a37-bc4a-55b843a9c34c	techaddaainstitute@gmail.com	078dc1ca5f4d841c92affa6bc3ee21cc	TechAddaa Institute Administrator	+91-7579944452	super_admin	t	2025-12-07 07:21:32.306944+00	2025-10-04 19:14:01.586319+00	0	\N	\N	2025-10-04 19:14:01.586319+00	2025-12-07 07:21:32.306944+00
+\.
+
+
+--
+-- Data for Name: attendance; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.attendance (id, user_id, attendance_date, status, check_in_at, check_out_at, remarks, created_at, updated_at) FROM stdin;
+5d43a08c-d3fa-4e0e-b73c-e5ae1c2d76a5	d065f8ff-e313-4d68-a413-feadb20633c1	2025-12-06	present	\N	\N	\N	2025-12-07 07:40:27.861649+00	2025-12-07 07:40:23.248+00
+bf63a575-e3b7-45f5-a91a-de581f398da9	d7dd69b8-326d-48af-9f3e-e107d13a06f9	2025-12-06	present	\N	\N	\N	2025-12-07 07:40:30.386368+00	2025-12-07 07:40:25.795+00
+a65b5af7-ad53-489e-98a1-f8d40b7d14ef	f3dd92ff-f0ac-43a4-84a5-9b02f65d95c0	2025-12-06	present	\N	\N	\N	2025-12-07 07:40:32.557256+00	2025-12-07 07:40:27.961+00
+c477479b-472a-4ceb-97a0-528d7214bf6c	24b451f6-51d5-41bf-95d9-0f9a17fc8c95	2025-12-06	present	\N	\N	\N	2025-12-07 07:40:44.910721+00	2025-12-07 07:40:40.304+00
+563d1475-5c19-41d7-957a-e5b50fb0f6a9	d867bb56-15ec-4b60-87b1-85ea1374fe01	2025-12-06	present	\N	\N	\N	2025-12-07 07:40:48.838872+00	2025-12-07 07:40:44.242+00
+614e064b-0899-4202-93b5-9a77bc6abfd2	ad15a1fc-7fa2-4ff1-ab2d-79c4001c4d32	2025-12-06	present	\N	\N	\N	2025-12-07 07:41:23.298207+00	2025-12-07 07:41:18.111+00
+e4836114-2759-4839-9835-2eb5fd97aba9	197c89e3-707b-447f-8c09-4928a1b7c22c	2025-12-07	absent	\N	\N	Teacher Not Present	2025-12-07 07:48:36.862631+00	2025-12-07 07:56:38.678+00
+62f92d10-5806-41fb-9f60-3f46042d1979	6468285f-750e-4c25-a95f-52269c3b0c08	2025-12-07	absent	\N	\N	Teacher Not Present	2025-12-07 07:49:00.262774+00	2025-12-07 07:59:24.114+00
+886fb970-c929-412b-bc50-3d8d968fca83	d065f8ff-e313-4d68-a413-feadb20633c1	2025-12-07	absent	\N	\N	sdfv	2025-12-07 07:23:27.99498+00	2025-12-07 08:01:09.696+00
+81415722-ca4f-4052-a8eb-a9dba5abcfea	d7dd69b8-326d-48af-9f3e-e107d13a06f9	2025-12-07	absent	\N	\N		2025-12-07 07:28:09.511768+00	2025-12-07 08:01:11.07+00
+30e7f052-34ce-4df7-8536-f07fa9ebc4c3	f3dd92ff-f0ac-43a4-84a5-9b02f65d95c0	2025-12-07	absent	\N	\N	\N	2025-12-07 07:48:56.287267+00	2025-12-07 08:01:12.236+00
+17a15970-dc92-43ff-a542-9a7204f07241	ad15a1fc-7fa2-4ff1-ab2d-79c4001c4d32	2025-12-07	absent	\N	\N	\N	2025-12-07 07:59:33.786264+00	2025-12-07 08:01:14.363+00
+85d8f8bf-e60a-4d86-957e-dbe95fc18787	24b451f6-51d5-41bf-95d9-0f9a17fc8c95	2025-12-07	absent	\N	\N	\N	2025-12-07 07:59:36.225858+00	2025-12-07 08:01:15.55+00
+ac89d908-a486-473d-b9f1-5c2675af76c4	d867bb56-15ec-4b60-87b1-85ea1374fe01	2025-12-07	absent	\N	\N	\N	2025-12-07 08:00:23.848988+00	2025-12-07 08:01:17.154+00
+29901616-d33a-40d7-9de8-3c57724dcf3c	8e993d95-2cab-492b-b3a7-24adbfb75d06	2025-12-07	absent	\N	\N	Student is Late	2025-12-07 08:00:43.433317+00	2025-12-07 08:01:18.313+00
+7d337344-7f77-4c7e-b73a-7030bb836efe	fb639c4a-126f-4c16-a51f-66555461f9db	2025-12-07	absent	\N	\N	Student is Late	2025-12-07 08:00:49.776035+00	2025-12-07 08:01:19.414+00
+81d88889-b76a-4e22-8760-d77f866dbf1d	52bf5577-0464-4c44-a6e4-40b9ab2c5536	2025-12-07	absent	\N	\N	Student is Late	2025-12-07 08:01:07.184899+00	2025-12-07 08:01:20.618+00
+9817fa7a-c2e7-43a7-8d88-ec6efda1d48d	6468285f-750e-4c25-a95f-52269c3b0c08	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 07:44:19.328057+00	2025-12-07 08:01:41.178+00
+beaf2a94-9109-4895-a69b-d761a3bba619	197c89e3-707b-447f-8c09-4928a1b7c22c	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:01:49.698592+00	2025-12-07 08:01:45.168+00
+030a4d5d-d1f4-46eb-afd4-370e58437b90	8e993d95-2cab-492b-b3a7-24adbfb75d06	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:01:59.165707+00	2025-12-07 08:01:54.63+00
+e2db28af-15fe-474e-9186-0b710cf226f5	fb639c4a-126f-4c16-a51f-66555461f9db	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:03.280593+00	2025-12-07 08:01:58.725+00
+461dd735-4102-46a8-9a6b-3329a45545a0	52bf5577-0464-4c44-a6e4-40b9ab2c5536	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:08.48984+00	2025-12-07 08:02:03.883+00
+aff4d53a-ee29-4400-a8c0-ee1b93f48667	db3606a5-8e71-4796-94f5-444feff4425b	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:16.58303+00	2025-12-07 08:02:12.024+00
+bd4fb20b-1d15-46b4-85b1-ad1c4d551609	a76081b4-96dd-4178-901b-e1f4b1c99b55	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:19.89248+00	2025-12-07 08:02:15.35+00
+8788839d-6f0a-429a-b633-ef00273cbbbc	8611f73c-4a4d-457b-88eb-94198c2a577a	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:32.393077+00	2025-12-07 08:02:26.661+00
+bd6216c3-e52b-494e-9191-48bef57a6798	75d4e6ac-b18e-4bcc-a744-e4f51d0c5b38	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:36.355628+00	2025-12-07 08:02:31.807+00
+d23b70ad-08bc-4d52-868d-35481d0f92cd	b16d3257-8404-4fc3-8c2b-8be3e3ea7995	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:39.313714+00	2025-12-07 08:02:34.722+00
+18007c03-0b8b-4464-9b0a-452af565aab7	2f092881-a975-492a-aa0b-3e4ac3382547	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:42.630029+00	2025-12-07 08:02:38.089+00
+ca8d42e1-b134-4c59-8758-47f012ed2485	2a83928e-04e9-46cd-a107-0ed1e4629955	2025-12-06	absent	\N	\N	Teacher Not Present	2025-12-07 08:02:48.136462+00	2025-12-07 08:02:43.603+00
 \.
 
 
@@ -5104,6 +5175,14 @@ ALTER TABLE ONLY public.admin_user
 
 
 --
+-- Name: attendance attendance_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.attendance
+    ADD CONSTRAINT attendance_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: certificate_downloads certificate_downloads_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -5205,6 +5284,14 @@ ALTER TABLE ONLY public.payments
 
 ALTER TABLE ONLY public.payments
     ADD CONSTRAINT unique_instamojo_payment_id UNIQUE (instamojo_payment_id);
+
+
+--
+-- Name: attendance unique_user_attendance_per_day; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.attendance
+    ADD CONSTRAINT unique_user_attendance_per_day UNIQUE (user_id, attendance_date);
 
 
 --
@@ -5738,6 +5825,13 @@ CREATE INDEX idx_admin_user_role ON public.admin_user USING btree (role);
 
 
 --
+-- Name: idx_attendance_user_date; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_attendance_user_date ON public.attendance USING btree (user_id, attendance_date);
+
+
+--
 -- Name: idx_certificate_downloads_user; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -6253,6 +6347,14 @@ ALTER TABLE ONLY public.admin_user
 
 
 --
+-- Name: attendance attendance_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.attendance
+    ADD CONSTRAINT attendance_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_profiles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: certificate_downloads certificate_downloads_certificate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -6511,6 +6613,15 @@ CREATE POLICY "Admins can manage all payments" ON public.payments USING ((EXISTS
 
 
 --
+-- Name: attendance Admins can manage attendance; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Admins can manage attendance" ON public.attendance USING ((EXISTS ( SELECT 1
+   FROM public.user_profiles
+  WHERE ((user_profiles.id = auth.uid()) AND (user_profiles.role = 'admin'::text)))));
+
+
+--
 -- Name: courses All; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -6555,6 +6666,13 @@ CREATE POLICY "Users can enroll themselves" ON public.course_enrollments FOR INS
 
 
 --
+-- Name: attendance Users can insert own attendance; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Users can insert own attendance" ON public.attendance FOR INSERT WITH CHECK ((auth.uid() = user_id));
+
+
+--
 -- Name: fees Users can insert own fees; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -6573,6 +6691,13 @@ CREATE POLICY "Users can insert own payments" ON public.payments FOR INSERT WITH
 --
 
 CREATE POLICY "Users can insert own profile" ON public.user_profiles FOR INSERT WITH CHECK ((auth.uid() = id));
+
+
+--
+-- Name: attendance Users can update own attendance; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Users can update own attendance" ON public.attendance FOR UPDATE USING ((auth.uid() = user_id));
 
 
 --
@@ -6601,6 +6726,13 @@ CREATE POLICY "Users can update own payments" ON public.payments FOR UPDATE USIN
 --
 
 CREATE POLICY "Users can update own profile" ON public.user_profiles FOR UPDATE USING ((auth.uid() = id));
+
+
+--
+-- Name: attendance Users can view own attendance; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Users can view own attendance" ON public.attendance FOR SELECT USING ((auth.uid() = user_id));
 
 
 --
@@ -6678,6 +6810,13 @@ CREATE POLICY "all" ON public.admin_sessions USING (true) WITH CHECK (true);
 
 
 --
+-- Name: attendance all; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "all" ON public.attendance USING (true) WITH CHECK (true);
+
+
+--
 -- Name: certificate_downloads all; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -6725,6 +6864,12 @@ CREATE POLICY "all" ON public.payments USING (true) WITH CHECK (true);
 
 CREATE POLICY "all" ON public.user_profiles USING (true) WITH CHECK (true);
 
+
+--
+-- Name: attendance; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: certificate_downloads; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -7925,6 +8070,15 @@ GRANT ALL ON TABLE public.admin_user TO service_role;
 
 
 --
+-- Name: TABLE attendance; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.attendance TO anon;
+GRANT ALL ON TABLE public.attendance TO authenticated;
+GRANT ALL ON TABLE public.attendance TO service_role;
+
+
+--
 -- Name: TABLE certificate_downloads; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -8433,5 +8587,5 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict CotfyMSI1QLZ0GhwxzgBf30lPddBs0N7hph2sg0a8xIqJaHnLhuRuPOGD12hGZw
+\unrestrict vrGuDhFw19ycTs7xk8KtHXmnu2Ceonh8Eh4JIYrc5qWvQb1S3Blj2tIf2vUxxz2
 
